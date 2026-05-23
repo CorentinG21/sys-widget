@@ -99,7 +99,48 @@ def get_cpu_temp() -> float | None:
 def get_gpu() -> dict | None:
     _init_lhm()
     with _lhm_lock:
-        return _lhm_gpu
+        if _lhm_gpu is not None:
+            return _lhm_gpu
+    return _get_gpu_pynvml()
+
+
+# ── NVIDIA fallback via pynvml (si LHM ne détecte pas le GPU) ────────────────
+
+_nvml_handle = None
+_nvml_failed = False
+
+
+def _init_nvml():
+    global _nvml_handle, _nvml_failed
+    if _nvml_failed:
+        return False
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        _nvml_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        return True
+    except Exception:
+        _nvml_failed = True
+        return False
+
+
+def _get_gpu_pynvml() -> dict | None:
+    global _nvml_handle
+    if _nvml_handle is None and not _init_nvml():
+        return None
+    try:
+        import pynvml
+        util = pynvml.nvmlDeviceGetUtilizationRates(_nvml_handle)
+        temp = pynvml.nvmlDeviceGetTemperature(_nvml_handle, pynvml.NVML_TEMPERATURE_GPU)
+        mem = pynvml.nvmlDeviceGetMemoryInfo(_nvml_handle)
+        return {
+            'usage': float(util.gpu),
+            'temp': float(temp),
+            'vram_used_gb': mem.used / 1024 ** 3,
+            'vram_total_gb': mem.total / 1024 ** 3,
+        }
+    except Exception:
+        return None
 
 # ── RAM ──────────────────────────────────────────────────────────────────────
 
@@ -161,10 +202,16 @@ def get_network() -> dict:
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 
 def cleanup():
-    global _lhm_proc
+    global _lhm_proc, _nvml_handle
     if _lhm_proc is not None:
         try:
             _lhm_proc.terminate()
             _lhm_proc = None
+        except Exception:
+            pass
+    if _nvml_handle is not None:
+        try:
+            import pynvml
+            pynvml.nvmlShutdown()
         except Exception:
             pass
