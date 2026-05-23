@@ -74,7 +74,8 @@ class _ClickableLabel(QLabel):
 
 
 class DesktopWidget(QWidget):
-    _update_done = pyqtSignal(bool)  # True = success, False = failure
+    _update_done = pyqtSignal(bool)      # True = success, False = failure
+    _manual_update_signal = pyqtSignal(str, str)  # (version, url) — check manuel
 
     def __init__(self):
         super().__init__()
@@ -84,6 +85,7 @@ class DesktopWidget(QWidget):
         self._init_ui()
         self._load_position()
         self._update_done.connect(self._on_update_done)
+        self._manual_update_signal.connect(self.show_update)
 
     def _init_ui(self):
         self.setWindowFlags(
@@ -263,6 +265,15 @@ class DesktopWidget(QWidget):
             if self._update_action:
                 self._update_action.setEnabled(True)
 
+    def _check_update_manual(self):
+        """Déclenche un check de mise à jour dans un thread daemon (menu clic droit)."""
+        def _check():
+            result = updater.check_for_update(VERSION)
+            if result:
+                version, url = result
+                self._manual_update_signal.emit(version, url)
+        threading.Thread(target=_check, daemon=True).start()
+
     # ── Drag ────────────────────────────────────────────────────────────────
 
     def mousePressEvent(self, event):
@@ -291,8 +302,11 @@ class DesktopWidget(QWidget):
         self._update_action.setVisible(self._update_url is not None)
         self._update_action.triggered.connect(self._start_update)
         menu.addAction(self._update_action)
-        if self._update_url:
-            menu.addSeparator()
+
+        check_action = QAction('Rechercher une mise a jour', self)
+        check_action.triggered.connect(self._check_update_manual)
+        menu.addAction(check_action)
+        menu.addSeparator()
 
         restart_action = QAction('Redemarrer', self)
         restart_action.triggered.connect(self._restart)
@@ -305,22 +319,40 @@ class DesktopWidget(QWidget):
 
     def _restart(self):
         import collectors
-        from PyQt6.QtCore import QTimer
+        import tempfile
         collectors.cleanup()  # libère le verrou sur LibreHardwareMonitorLib.dll
+
+        # Intermédiaire PS : attend la mort du PID courant avant de relancer.
+        # Garantit que l'ancien et le nouvel exe ne tournent JAMAIS simultanément,
+        # ce qui évite le "Failed to start embedded python interpreter!".
+        pid = os.getpid()
+        ps1 = os.path.join(tempfile.gettempdir(), 'sysmon_restart.ps1')
+
         if getattr(sys, 'frozen', False):
-            cmd = [sys.executable]
+            launch_cmd = f'Start-Process -FilePath "{sys.executable}"'
         else:
-            cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'main.py')]
-        def _do():
-            subprocess.Popen(
-                cmd,
-                creationflags=(subprocess.CREATE_NO_WINDOW |
-                                subprocess.DETACHED_PROCESS |
-                                subprocess.CREATE_BREAKAWAY_FROM_JOB),
-                close_fds=True,
-            )
-            QApplication.quit()
-        QTimer.singleShot(500, _do)
+            main_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'main.py')
+            launch_cmd = f'Start-Process -FilePath "{sys.executable}" -ArgumentList "{main_py}"'
+
+        ps_content = (
+            f'$p = {pid}\n'
+            f'while (Get-Process -Id $p -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 200 }}\n'
+            f'Start-Sleep -Milliseconds 500\n'
+            f'{launch_cmd}\n'
+            f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
+        )
+        with open(ps1, 'w', encoding='utf-8') as f:
+            f.write(ps_content)
+
+        subprocess.Popen(
+            ['powershell', '-NonInteractive', '-NoProfile',
+             '-ExecutionPolicy', 'Bypass', '-File', ps1],
+            creationflags=(subprocess.CREATE_NO_WINDOW |
+                           subprocess.DETACHED_PROCESS |
+                           subprocess.CREATE_BREAKAWAY_FROM_JOB),
+            close_fds=True,
+        )
+        QApplication.quit()  # On quitte directement — le PS attend notre mort
 
     # ── Position persistence ─────────────────────────────────────────────────
 
