@@ -31,6 +31,7 @@ def main():
 
     monitor = MonitorThread(interval=2.0)
     monitor.data_updated.connect(widget.update_display)
+    monitor.update_available.connect(widget.show_update)
     monitor.start()
 
     ret = app.exec()

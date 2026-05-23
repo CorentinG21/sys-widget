@@ -2,10 +2,13 @@ import json
 import os
 import subprocess
 import sys
+import threading
 
-from PyQt6.QtCore import Qt, QPoint, pyqtSlot
-from PyQt6.QtGui import QPainter, QColor, QFont, QAction
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QPainter, QColor, QFont, QAction, QCursor
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMenu, QSizePolicy
+
+import updater
 
 _appdata = os.environ.get('APPDATA', os.path.expanduser('~'))
 _config_dir = os.path.join(_appdata, 'sysmon-widget')
@@ -52,12 +55,34 @@ def _make_label(font: QFont, color: str = '#c8c8c8') -> QLabel:
     return lbl
 
 
+class _ClickableLabel(QLabel):
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        # Don't call super — prevent drag on this label
+
+    def enterEvent(self, event):
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        super().leaveEvent(event)
+
+
 class DesktopWidget(QWidget):
+    _update_done = pyqtSignal(bool)  # True = success, False = failure
+
     def __init__(self):
         super().__init__()
         self._drag_pos: QPoint | None = None
+        self._update_url: str | None = None
+        self._update_action: QAction | None = None
         self._init_ui()
         self._load_position()
+        self._update_done.connect(self._on_update_done)
 
     def _init_ui(self):
         self.setWindowFlags(
@@ -78,19 +103,16 @@ class DesktopWidget(QWidget):
 
         self._rows: dict[str, QLabel] = {}
 
-        # CPU / GPU / RAM — une ligne chacun
         for key in ['cpu', 'gpu', 'ram']:
             lbl = _make_label(font)
             layout.addWidget(lbl)
             self._rows[key] = lbl
 
-        # Séparateur composants / disques
         sep_disk = QLabel('─' * 32)
         sep_disk.setFont(font)
         sep_disk.setStyleSheet('color: #383838;')
         layout.addWidget(sep_disk)
 
-        # Disques dynamiques
         self._disk_container = QWidget()
         self._disk_container.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         self._disk_layout = QVBoxLayout(self._disk_container)
@@ -99,16 +121,28 @@ class DesktopWidget(QWidget):
         layout.addWidget(self._disk_container)
         self._disk_labels: list[QLabel] = []
 
-        # Séparateur avant réseau
-        sep = QLabel('─' * 32)
-        sep.setFont(font)
-        sep.setStyleSheet('color: #383838;')
-        layout.addWidget(sep)
+        sep_net = QLabel('─' * 32)
+        sep_net.setFont(font)
+        sep_net.setStyleSheet('color: #383838;')
+        layout.addWidget(sep_net)
 
-        # Réseau
         net_lbl = _make_label(font)
         layout.addWidget(net_lbl)
         self._rows['net'] = net_lbl
+
+        # Update notification bar (hidden until an update is detected)
+        self._sep_update = QLabel('─' * 32)
+        self._sep_update.setFont(font)
+        self._sep_update.setStyleSheet('color: #383838;')
+        self._sep_update.setVisible(False)
+        layout.addWidget(self._sep_update)
+
+        self._update_bar = _ClickableLabel()
+        self._update_bar.setFont(font)
+        self._update_bar.setStyleSheet('color: #ffd166;')
+        self._update_bar.setVisible(False)
+        self._update_bar.clicked.connect(self._start_update)
+        layout.addWidget(self._update_bar)
 
         self.adjustSize()
 
@@ -133,15 +167,18 @@ class DesktopWidget(QWidget):
         self._rows['cpu'].setText(f'{"CPU":<6}{_bar(cpu_pct)} {cpu_pct:>3.0f}%{temp_str}')
         self._rows['cpu'].setStyleSheet(f'color: {_color_for(cpu_pct)};')
 
-        # GPU
+        # GPU — hide the row entirely if no GPU hardware detected
         if gpu:
             g_pct = gpu['usage']
-            vram = f"  {gpu['vram_used_gb']:.1f}/{gpu['vram_total_gb']:.0f}G"
-            self._rows['gpu'].setText(f'{"GPU":<6}{_bar(g_pct)} {g_pct:>3}%  {gpu["temp"]}°C{vram}')
+            temp_str_g = f'  {gpu["temp"]:.0f}°C' if gpu.get('temp') is not None else ''
+            vram_used = gpu.get('vram_used_gb')
+            vram_total = gpu.get('vram_total_gb')
+            vram_str = f'  {vram_used:.1f}/{vram_total:.0f}G' if vram_used is not None and vram_total is not None else ''
+            self._rows['gpu'].setText(f'{"GPU":<6}{_bar(g_pct)} {g_pct:>3.0f}%{temp_str_g}{vram_str}')
             self._rows['gpu'].setStyleSheet(f'color: {_color_for(g_pct)};')
+            self._rows['gpu'].setVisible(True)
         else:
-            self._rows['gpu'].setText('GPU   N/A')
-            self._rows['gpu'].setStyleSheet('color: #606060;')
+            self._rows['gpu'].setVisible(False)
 
         # RAM
         ram_pct = ram.get('percent', 0.0)
@@ -182,6 +219,43 @@ class DesktopWidget(QWidget):
 
         self.adjustSize()
 
+    # ── Auto-update ──────────────────────────────────────────────────────────
+
+    @pyqtSlot(str, str)
+    def show_update(self, version: str, url: str):
+        self._update_url = url
+        self._update_bar.setText(f'Nouvelle version v{version} — Cliquer pour mettre a jour')
+        self._sep_update.setVisible(True)
+        self._update_bar.setVisible(True)
+        if self._update_action:
+            self._update_action.setText(f'Mettre a jour (v{version})')
+            self._update_action.setVisible(True)
+        self.adjustSize()
+
+    def _start_update(self):
+        if not self._update_url:
+            return
+        self._update_bar.setText('Telechargement en cours...')
+        self._update_bar.setEnabled(False)
+        if self._update_action:
+            self._update_action.setEnabled(False)
+        url = self._update_url
+        threading.Thread(target=self._run_update, args=(url,), daemon=True).start()
+
+    def _run_update(self, url: str):
+        success = updater.download_and_apply(url)
+        self._update_done.emit(success)
+
+    @pyqtSlot(bool)
+    def _on_update_done(self, success: bool):
+        if success:
+            QApplication.quit()
+        else:
+            self._update_bar.setText('Echec de la mise a jour')
+            self._update_bar.setEnabled(True)
+            if self._update_action:
+                self._update_action.setEnabled(True)
+
     # ── Drag ────────────────────────────────────────────────────────────────
 
     def mousePressEvent(self, event):
@@ -200,7 +274,15 @@ class DesktopWidget(QWidget):
 
     def _show_context_menu(self, pos):
         menu = QMenu(self)
-        restart_action = QAction('Redémarrer', self)
+
+        self._update_action = QAction('Mettre a jour', self)
+        self._update_action.setVisible(self._update_url is not None)
+        self._update_action.triggered.connect(self._start_update)
+        menu.addAction(self._update_action)
+        if self._update_url:
+            menu.addSeparator()
+
+        restart_action = QAction('Redemarrer', self)
         restart_action.triggered.connect(self._restart)
         menu.addAction(restart_action)
         menu.addSeparator()

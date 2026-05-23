@@ -8,7 +8,7 @@ a = Analysis(
         ('hardware/read_temp.ps1', 'hardware'),
         ('hardware/LibreHardwareMonitorLib.dll', 'hardware'),
     ],
-    hiddenimports=['pynvml'],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
