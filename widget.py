@@ -312,7 +312,13 @@ class DesktopWidget(QWidget):
         else:
             cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'main.py')]
         def _do():
-            subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+            subprocess.Popen(
+                cmd,
+                creationflags=(subprocess.CREATE_NO_WINDOW |
+                                subprocess.DETACHED_PROCESS |
+                                subprocess.CREATE_BREAKAWAY_FROM_JOB),
+                close_fds=True,
+            )
             QApplication.quit()
         QTimer.singleShot(500, _do)
 

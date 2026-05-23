@@ -81,7 +81,9 @@ def download_and_apply(download_url: str, on_progress=None) -> bool:
     subprocess.Popen(
         ['powershell', '-NonInteractive', '-NoProfile',
          '-ExecutionPolicy', 'Bypass', '-File', ps1],
-        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+        creationflags=(subprocess.CREATE_NO_WINDOW |
+                       subprocess.DETACHED_PROCESS |
+                       subprocess.CREATE_BREAKAWAY_FROM_JOB),
         close_fds=True,
     )
     return True
