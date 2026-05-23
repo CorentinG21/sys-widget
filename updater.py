@@ -61,11 +61,17 @@ def download_and_apply(download_url: str, on_progress=None) -> bool:
     except Exception:
         return False
 
-    # Bat runs after the process exits, then replaces the exe and restarts it.
+    # Bat attend que le process courant soit mort avant de copier le nouvel exe.
+    pid = os.getpid()
     bat = os.path.join(tempfile.gettempdir(), 'sysmon_update.bat')
     with open(bat, 'w') as f:
         f.write('@echo off\n')
-        f.write('timeout /t 2 /nobreak >nul\n')
+        f.write(':waitloop\n')
+        f.write(f'tasklist /FI "PID eq {pid}" 2>NUL | find /I "{pid}" >NUL\n')
+        f.write('if "%ERRORLEVEL%"=="0" (\n')
+        f.write('    timeout /t 1 /nobreak >nul\n')
+        f.write('    goto waitloop\n')
+        f.write(')\n')
         f.write(f'copy /y "{tmp_exe}" "{current_exe}"\n')
         f.write(f'start "" "{current_exe}"\n')
         f.write('del "%~f0"\n')
