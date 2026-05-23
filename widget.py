@@ -320,6 +320,7 @@ class DesktopWidget(QWidget):
     def _restart(self):
         import collectors
         import tempfile
+        from PyQt6.QtCore import QTimer
         collectors.cleanup()  # libère le verrou sur LibreHardwareMonitorLib.dll
 
         # Intermédiaire PS : attend la mort du PID courant avant de relancer.
@@ -341,18 +342,25 @@ class DesktopWidget(QWidget):
             f'{launch_cmd}\n'
             f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
         )
-        with open(ps1, 'w', encoding='utf-8') as f:
-            f.write(ps_content)
+        try:
+            with open(ps1, 'w', encoding='utf-8') as f:
+                f.write(ps_content)
+            subprocess.Popen(
+                ['powershell', '-NonInteractive', '-NoProfile',
+                 '-ExecutionPolicy', 'Bypass', '-File', ps1],
+                creationflags=(subprocess.CREATE_NO_WINDOW |
+                               subprocess.DETACHED_PROCESS |
+                               subprocess.CREATE_BREAKAWAY_FROM_JOB),
+                close_fds=True,
+            )
+        except Exception:
+            pass
 
-        subprocess.Popen(
-            ['powershell', '-NonInteractive', '-NoProfile',
-             '-ExecutionPolicy', 'Bypass', '-File', ps1],
-            creationflags=(subprocess.CREATE_NO_WINDOW |
-                           subprocess.DETACHED_PROCESS |
-                           subprocess.CREATE_BREAKAWAY_FROM_JOB),
-            close_fds=True,
-        )
-        QApplication.quit()  # On quitte directement — le PS attend notre mort
+        # QTimer.singleShot garantit que le quit est traité APRES que le slot
+        # et le menu.exec() se soient terminés (retour dans la main event loop).
+        # Appeler QApplication.quit() directement dans un slot imbriqué dans
+        # menu.exec() peut ne pas propager correctement l'événement quit.
+        QTimer.singleShot(200, QApplication.quit)
 
     # ── Position persistence ─────────────────────────────────────────────────
 
