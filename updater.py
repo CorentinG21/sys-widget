@@ -61,23 +61,26 @@ def download_and_apply(download_url: str, on_progress=None) -> bool:
     except Exception:
         return False
 
-    # Bat attend que le process courant soit mort avant de copier le nouvel exe.
+    # Script PowerShell : attend la mort du process, copie, débloque, relance.
+    # Plus fiable qu'un bat pour les exe avec manifest requireAdministrator.
     pid = os.getpid()
-    bat = os.path.join(tempfile.gettempdir(), 'sysmon_update.bat')
-    with open(bat, 'w') as f:
-        f.write('@echo off\n')
-        f.write(':waitloop\n')
-        f.write(f'tasklist /FI "PID eq {pid}" 2>NUL | find /I "{pid}" >NUL\n')
-        f.write('if "%ERRORLEVEL%"=="0" (\n')
-        f.write('    timeout /t 1 /nobreak >nul\n')
-        f.write('    goto waitloop\n')
-        f.write(')\n')
-        f.write(f'copy /y "{tmp_exe}" "{current_exe}"\n')
-        f.write(f'start "" "{current_exe}"\n')
-        f.write('del "%~f0"\n')
+    ps1 = os.path.join(tempfile.gettempdir(), 'sysmon_update.ps1')
+    ps_content = (
+        f'$p = {pid}\n'
+        f'while (Get-Process -Id $p -ErrorAction SilentlyContinue) {{ Start-Sleep -Seconds 1 }}\n'
+        f'Start-Sleep -Seconds 1\n'
+        f'Unblock-File -Path "{tmp_exe}" -ErrorAction SilentlyContinue\n'
+        f'Copy-Item -Path "{tmp_exe}" -Destination "{current_exe}" -Force\n'
+        f'Unblock-File -Path "{current_exe}" -ErrorAction SilentlyContinue\n'
+        f'Start-Process -FilePath "{current_exe}"\n'
+        f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
+    )
+    with open(ps1, 'w', encoding='utf-8') as f:
+        f.write(ps_content)
 
     subprocess.Popen(
-        ['cmd', '/c', bat],
+        ['powershell', '-NonInteractive', '-NoProfile',
+         '-ExecutionPolicy', 'Bypass', '-File', ps1],
         creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
         close_fds=True,
     )
