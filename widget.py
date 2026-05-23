@@ -298,12 +298,17 @@ class DesktopWidget(QWidget):
         menu.exec(self.mapToGlobal(pos))
 
     def _restart(self):
+        import collectors
+        from PyQt6.QtCore import QTimer
+        collectors.cleanup()  # libère le verrou sur LibreHardwareMonitorLib.dll
         if getattr(sys, 'frozen', False):
-            subprocess.Popen([sys.executable], creationflags=subprocess.CREATE_NO_WINDOW)
+            cmd = [sys.executable]
         else:
-            script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'main.py')
-            subprocess.Popen([sys.executable, script], creationflags=subprocess.CREATE_NO_WINDOW)
-        QApplication.quit()
+            cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'main.py')]
+        def _do():
+            subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+            QApplication.quit()
+        QTimer.singleShot(500, _do)
 
     # ── Position persistence ─────────────────────────────────────────────────
 
