@@ -167,15 +167,21 @@ class DesktopWidget(QWidget):
         self._rows['cpu'].setText(f'{"CPU":<6}{_bar(cpu_pct)} {cpu_pct:>3.0f}%{temp_str}')
         self._rows['cpu'].setStyleSheet(f'color: {_color_for(cpu_pct)};')
 
-        # GPU — hide the row entirely if no GPU hardware detected
+        # GPU — masqué si aucun hardware GPU détecté
         if gpu:
-            g_pct = gpu['usage']
+            g_pct = gpu.get('usage')
+            if g_pct is not None:
+                bar_str = f'{_bar(g_pct)} {g_pct:>3.0f}%'
+                gpu_color = _color_for(g_pct)
+            else:
+                bar_str = '—'
+                gpu_color = '#606060'
             temp_str_g = f'  {gpu["temp"]:.0f}°C' if gpu.get('temp') is not None else ''
             vram_used = gpu.get('vram_used_gb')
             vram_total = gpu.get('vram_total_gb')
             vram_str = f'  {vram_used:.1f}/{vram_total:.0f}G' if vram_used is not None and vram_total is not None else ''
-            self._rows['gpu'].setText(f'{"GPU":<6}{_bar(g_pct)} {g_pct:>3.0f}%{temp_str_g}{vram_str}')
-            self._rows['gpu'].setStyleSheet(f'color: {_color_for(g_pct)};')
+            self._rows['gpu'].setText(f'{"GPU":<6}{bar_str}{temp_str_g}{vram_str}')
+            self._rows['gpu'].setStyleSheet(f'color: {gpu_color};')
             self._rows['gpu'].setVisible(True)
         else:
             self._rows['gpu'].setVisible(False)

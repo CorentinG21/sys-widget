@@ -1,4 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
+sys.path.insert(0, '.')
+from version import VERSION
 
 a = Analysis(
     ['main.py'],
@@ -24,7 +27,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='SysmonWidget',
+    name=f'SysmonWidget-v{VERSION}',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
