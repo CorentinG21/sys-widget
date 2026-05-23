@@ -206,6 +206,7 @@ def cleanup():
     if _lhm_proc is not None:
         try:
             _lhm_proc.terminate()
+            _lhm_proc.wait(timeout=3)  # attend la mort réelle pour libérer le DLL
             _lhm_proc = None
         except Exception:
             pass

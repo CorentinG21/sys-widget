@@ -9,6 +9,7 @@ from PyQt6.QtGui import QPainter, QColor, QFont, QAction, QCursor
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMenu, QSizePolicy
 
 import updater
+from version import VERSION
 
 _appdata = os.environ.get('APPDATA', os.path.expanduser('~'))
 _config_dir = os.path.join(_appdata, 'sysmon-widget')
@@ -280,6 +281,11 @@ class DesktopWidget(QWidget):
 
     def _show_context_menu(self, pos):
         menu = QMenu(self)
+
+        version_action = QAction(f'SysmonWidget v{VERSION}', self)
+        version_action.setEnabled(False)
+        menu.addAction(version_action)
+        menu.addSeparator()
 
         self._update_action = QAction('Mettre a jour', self)
         self._update_action.setVisible(self._update_url is not None)

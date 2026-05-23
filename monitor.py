@@ -38,16 +38,23 @@ class MonitorThread(QThread):
             time.sleep(self.interval)
 
     def _update_check_loop(self):
-        # Wait 30s after startup, then check every 6 hours
         if self._stop_event.wait(30):
             return
+        # 4 tentatives espacées de 60s en cas d'échec réseau au démarrage
+        for _ in range(4):
+            result = updater.check_for_update(VERSION)
+            if result:
+                self.update_available.emit(*result)
+                return
+            if self._stop_event.wait(60):
+                return
+        # Vérification périodique toutes les 1h
         while self._running:
             result = updater.check_for_update(VERSION)
             if result:
-                version, url = result
-                self.update_available.emit(version, url)
+                self.update_available.emit(*result)
                 return
-            if self._stop_event.wait(6 * 3600):
+            if self._stop_event.wait(3600):
                 return
 
     def stop(self):
