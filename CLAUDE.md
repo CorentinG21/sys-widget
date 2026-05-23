@@ -39,7 +39,43 @@ python main.py
 pythonw.exe main.py
 ```
 
-> Admin requis (`app.manifest` → `requireAdministrator`). Le widget démarre automatiquement via Task Scheduler — `install_startup.ps1` crée la tâche `SysmonWidget` au logon pour `PC-DE-COCO\coren` avec niveau Highest.
+> Admin requis (`app.manifest` → `requireAdministrator`). Le widget démarre automatiquement via Task Scheduler — `install_startup.ps1` crée la tâche `SysmonWidget` au logon (script dynamique, détecte l'utilisateur courant automatiquement).
+
+## Distribution — Build .exe autonome
+
+Le projet se distribue en un seul `SysmonWidget.exe` via PyInstaller.
+
+### Build local
+```powershell
+pip install pyinstaller
+pyinstaller sysmon_widget.spec
+# → dist/SysmonWidget.exe
+```
+
+### Release automatique (GitHub Actions)
+Chaque tag `v*` déclenche un build sur `windows-latest` et publie le `.exe` dans les GitHub Releases :
+```powershell
+git tag v1.x.x
+git push origin v1.x.x
+```
+Releases : https://github.com/CorentinG21/sys-widget/releases
+
+### Spec PyInstaller (`sysmon_widget.spec`)
+- One-file bundle
+- Embarque `hardware/read_temp.ps1` + `hardware/LibreHardwareMonitorLib.dll`
+- `uac_admin=True` — manifest requireAdministrator intégré
+- `console=False` — pas de fenêtre console
+
+### Installation sur un autre PC
+1. Télécharger `SysmonWidget.exe` + `install_startup.ps1` depuis les Releases
+2. Placer les deux fichiers dans le même dossier
+3. Lancer `install_startup.ps1` en tant qu'Administrateur
+
+## Points importants pour PyInstaller
+
+- `collectors.py` : utilise `sys._MEIPASS` quand `sys.frozen == True` pour localiser `read_temp.ps1`
+- `widget.py` : `config.json` sauvegardé dans `%APPDATA%\sysmon-widget\` (pas à côté du .exe)
+- `widget.py` `_restart()` : quand frozen, relance `sys.executable` directement sans argument `main.py`
 
 ## Données affichées
 
