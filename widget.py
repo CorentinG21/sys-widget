@@ -339,43 +339,72 @@ class DesktopWidget(QWidget):
         from PyQt6.QtCore import QTimer
         collectors.cleanup()  # libère le verrou sur LibreHardwareMonitorLib.dll
 
-        # Intermédiaire PS : attend la mort du PID courant avant de relancer.
-        # Garantit que l'ancien et le nouvel exe ne tournent JAMAIS simultanément,
-        # ce qui évite le "Failed to start embedded python interpreter!".
         pid = os.getpid()
-        ps1 = os.path.join(tempfile.gettempdir(), 'sysmon_restart.ps1')
 
         if getattr(sys, 'frozen', False):
-            launch_cmd = f'Start-Process -FilePath "{sys.executable}"'
+            exe = sys.executable
+            direct_cmd = [exe]
         else:
             main_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'main.py')
-            launch_cmd = f'Start-Process -FilePath "{sys.executable}" -ArgumentList "{main_py}"'
+            exe = None
+            direct_cmd = [sys.executable, main_py]
 
-        ps_content = (
-            f'$p = {pid}\n'
-            f'while (Get-Process -Id $p -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 200 }}\n'
-            f'Start-Sleep -Milliseconds 500\n'
-            f'{launch_cmd}\n'
-            f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
-        )
+        # ── Tentative 1 : intermédiaire PS ────────────────────────────────────
+        # Attend la mort du PID courant avant de relancer → evite que les deux
+        # instances PyInstaller extraient dans le meme _MEI et se marchent dessus.
+        # Unblock-File supprime le Zone.Identifier (Mark of the Web) qui peut
+        # bloquer silencieusement Start-Process en mode non-interactif.
+        ps_launched = False
         try:
+            ps1 = os.path.join(tempfile.gettempdir(), 'sysmon_restart.ps1')
+            if getattr(sys, 'frozen', False):
+                launch_lines = (
+                    f'Unblock-File -Path "{exe}" -ErrorAction SilentlyContinue\n'
+                    f'Start-Process -FilePath "{exe}"\n'
+                )
+            else:
+                launch_lines = (
+                    f'Start-Process -FilePath "{sys.executable}" '
+                    f'-ArgumentList "{main_py}"\n'
+                )
+            ps_content = (
+                f'$p = {pid}\n'
+                f'while (Get-Process -Id $p -ErrorAction SilentlyContinue)'
+                f' {{ Start-Sleep -Milliseconds 200 }}\n'
+                f'Start-Sleep -Milliseconds 500\n'
+                + launch_lines +
+                f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
+            )
             with open(ps1, 'w', encoding='utf-8') as f:
                 f.write(ps_content)
             subprocess.Popen(
                 ['powershell', '-NonInteractive', '-NoProfile',
                  '-ExecutionPolicy', 'Bypass', '-File', ps1],
                 creationflags=(subprocess.CREATE_NO_WINDOW |
-                               subprocess.DETACHED_PROCESS |
                                subprocess.CREATE_BREAKAWAY_FROM_JOB),
                 close_fds=True,
             )
+            ps_launched = True
         except Exception:
             pass
 
+        # ── Fallback : relance directe si PS n'a pas pu demarrer ─────────────
+        # Meme mecanisme que l'ancienne version — fonctionne, meme si le timing
+        # peut provoquer un avertissement PyInstaller au premier lancement.
+        if not ps_launched:
+            try:
+                subprocess.Popen(
+                    direct_cmd,
+                    creationflags=(subprocess.CREATE_NO_WINDOW |
+                                   subprocess.DETACHED_PROCESS |
+                                   subprocess.CREATE_BREAKAWAY_FROM_JOB),
+                    close_fds=True,
+                )
+            except Exception:
+                pass
+
         # QTimer.singleShot garantit que le quit est traité APRES que le slot
-        # et le menu.exec() se soient terminés (retour dans la main event loop).
-        # Appeler QApplication.quit() directement dans un slot imbriqué dans
-        # menu.exec() peut ne pas propager correctement l'événement quit.
+        # et menu.exec() se soient termines (retour dans la main event loop).
         QTimer.singleShot(200, QApplication.quit)
 
     # ── Position persistence ─────────────────────────────────────────────────
