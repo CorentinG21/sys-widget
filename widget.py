@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, QPoint, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QPainter, QColor, QFont, QAction, QCursor
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMenu, QSizePolicy
 
+import startup
 import updater
 from version import VERSION
 
@@ -274,6 +275,13 @@ class DesktopWidget(QWidget):
                 self._manual_update_signal.emit(version, url)
         threading.Thread(target=_check, daemon=True).start()
 
+    def _toggle_startup(self):
+        """Active ou désactive le démarrage automatique avec Windows."""
+        if startup.is_registered():
+            startup.unregister()
+        else:
+            startup.register()
+
     # ── Drag ────────────────────────────────────────────────────────────────
 
     def mousePressEvent(self, event):
@@ -307,6 +315,14 @@ class DesktopWidget(QWidget):
         check_action.triggered.connect(self._check_update_manual)
         menu.addAction(check_action)
         menu.addSeparator()
+
+        if getattr(sys, 'frozen', False):
+            registered = startup.is_registered()
+            label = '✓ Demarrer avec Windows' if registered else 'Demarrer avec Windows'
+            startup_action = QAction(label, self)
+            startup_action.triggered.connect(self._toggle_startup)
+            menu.addAction(startup_action)
+            menu.addSeparator()
 
         restart_action = QAction('Redemarrer', self)
         restart_action.triggered.connect(self._restart)

@@ -67,12 +67,15 @@ def download_and_apply(download_url: str, on_progress=None) -> bool:
     ps1 = os.path.join(tempfile.gettempdir(), 'sysmon_update.ps1')
     ps_content = (
         f'$p = {pid}\n'
-        f'while (Get-Process -Id $p -ErrorAction SilentlyContinue) {{ Start-Sleep -Seconds 1 }}\n'
-        f'Start-Sleep -Seconds 1\n'
+        f'while (Get-Process -Id $p -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 500 }}\n'
+        f'Start-Sleep -Milliseconds 500\n'
         f'Unblock-File -Path "{tmp_exe}" -ErrorAction SilentlyContinue\n'
-        f'Copy-Item -Path "{tmp_exe}" -Destination "{current_exe}" -Force\n'
-        f'Unblock-File -Path "{current_exe}" -ErrorAction SilentlyContinue\n'
-        f'Start-Process -FilePath "{current_exe}"\n'
+        f'Copy-Item -Path "{tmp_exe}" -Destination "{current_exe}" -Force -ErrorAction SilentlyContinue\n'
+        f'if (Test-Path "{current_exe}") {{\n'
+        f'    Unblock-File -Path "{current_exe}" -ErrorAction SilentlyContinue\n'
+        f'    Start-Process -FilePath "{current_exe}"\n'
+        f'}}\n'
+        f'Remove-Item -Path "{tmp_exe}" -Force -ErrorAction SilentlyContinue\n'
         f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
     )
     with open(ps1, 'w', encoding='utf-8') as f:
