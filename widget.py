@@ -381,7 +381,10 @@ class DesktopWidget(QWidget):
                 f'$p = {pid}\n'
                 f'while (Get-Process -Id $p -ErrorAction SilentlyContinue)'
                 f' {{ Start-Sleep -Milliseconds 200 }}\n'
-                f'Start-Sleep -Milliseconds 500\n'
+                # 3s supplémentaires : garantit que le process est mort et que
+                # Windows a libéré tous les handles sur les fichiers de _MEI,
+                # même si Get-Process ne peut pas voir un process elevated.
+                f'Start-Sleep -Seconds 3\n'
                 + launch_lines +
                 f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
             )
