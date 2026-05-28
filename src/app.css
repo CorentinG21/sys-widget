@@ -1,0 +1,118 @@
+/* ─────────────────────────────────────────────────────────────────────
+   Global reset & design tokens for SysmonWidget glassmorphism UI
+   ───────────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Typography */
+  font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+
+  /* Transparent base — the WebView background must be transparent */
+  background: transparent;
+  color: #e8e8e8;
+
+  /* ── Color tokens ── */
+  --color-ok:      #06d6a0;   /* green  < 70 % */
+  --color-warn:    #ffd166;   /* yellow 70–89 % */
+  --color-danger:  #ff6b6b;   /* red    ≥ 90 % */
+  --color-dl:      #74d7f7;   /* cyan   download < 1 MB/s */
+
+  /* ── Glassmorphism surface ── */
+  --glass-bg:      rgba(10, 10, 10, 0.78);
+  --glass-blur:    blur(16px);
+  --glass-border:  1px solid rgba(255, 255, 255, 0.08);
+  --glass-radius:  12px;
+  --glass-padding: 14px 16px;
+
+  /* ── Spacing ── */
+  --row-gap:     6px;
+  --label-width: 54px;
+  --bar-height:  4px;
+  --bar-radius:  2px;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── Widget container ── */
+.widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--row-gap);
+  width: 100%;
+  height: fit-content;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  padding: var(--glass-padding);
+  color: #e8e8e8;
+  cursor: default;
+}
+
+/* ── Section divider ── */
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 2px 0;
+}
+
+/* ── Progress bar ── */
+.bar-track {
+  flex: 1;
+  height: var(--bar-height);
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: var(--bar-radius);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: var(--bar-radius);
+  transition: width 0.4s ease, background-color 0.3s ease;
+  min-width: 2px;
+}
+
+/* ── Metric row layout ── */
+.metric-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.metric-label {
+  width: var(--label-width);
+  color: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.metric-values {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.metric-temp {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+}
