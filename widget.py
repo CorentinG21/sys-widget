@@ -350,15 +350,25 @@ class DesktopWidget(QWidget):
             direct_cmd = [sys.executable, main_py]
 
         # ── Tentative 1 : intermédiaire PS ────────────────────────────────────
-        # Attend la mort du PID courant avant de relancer → evite que les deux
-        # instances PyInstaller extraient dans le meme _MEI et se marchent dessus.
-        # Unblock-File supprime le Zone.Identifier (Mark of the Web) qui peut
-        # bloquer silencieusement Start-Process en mode non-interactif.
+        # Attend la mort du vieux PID, supprime explicitement son _MEI, puis
+        # relance l'exe. La suppression explicite est CRITIQUE : PyInstaller
+        # utilise le même répertoire _MEI (basé sur le CRC de l'exe) pour toutes
+        # les instances. Si la vieille instance ne peut pas le supprimer
+        # entièrement (DLL encore chargées pendant atexit), le nouvel exe trouve
+        # un _MEI partiel → "Failed to load python312.dll". En le supprimant
+        # depuis le PS (après que tous les handles sont libérés par la mort du
+        # process), on garantit une extraction fraîche et propre.
+        mei_path = getattr(sys, '_MEIPASS', None)  # None si pas frozen
         ps_launched = False
         try:
             ps1 = os.path.join(tempfile.gettempdir(), 'sysmon_restart.ps1')
             if getattr(sys, 'frozen', False):
+                mei_cleanup = (
+                    f'Remove-Item -Path "{mei_path}" -Recurse -Force '
+                    f'-ErrorAction SilentlyContinue\n'
+                ) if mei_path else ''
                 launch_lines = (
+                    mei_cleanup +
                     f'Unblock-File -Path "{exe}" -ErrorAction SilentlyContinue\n'
                     f'Start-Process -FilePath "{exe}"\n'
                 )
