@@ -7,16 +7,33 @@
     x: number;
     y: number;
     visible: boolean;
+    updateVersion: string | null;
     onclose: () => void;
   }
 
-  const { x, y, visible, onclose }: Props = $props();
+  const { x, y, visible, updateVersion, onclose }: Props = $props();
 
   let version = $state('…');
+  let startupEnabled = $state(false);
 
   onMount(async () => {
     version = await getVersion();
+    startupEnabled = await invoke<boolean>('startup_is_registered');
   });
+
+  async function toggleStartup() {
+    startupEnabled = await invoke<boolean>('startup_toggle');
+  }
+
+  async function checkUpdate() {
+    onclose();
+    await invoke('check_update');
+  }
+
+  async function installUpdate() {
+    onclose();
+    await invoke('install_update');
+  }
 
   async function restart() {
     onclose();
@@ -30,22 +47,33 @@
 </script>
 
 {#if visible}
-  <!-- Backdrop: clicking outside closes the menu -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="backdrop" onclick={onclose}></div>
 
-  <div
-    class="context-menu"
-    style="left: {x}px; top: {y}px;"
-    role="menu"
-  >
-    <!-- Version — disabled informational item -->
+  <div class="context-menu" style="left: {x}px; top: {y}px;" role="menu">
+
     <div class="menu-version" role="menuitem" aria-disabled="true">
       SysmonWidget v{version}
     </div>
 
     <div class="menu-divider"></div>
+
+    {#if updateVersion}
+      <button class="menu-item menu-item--update" role="menuitem" onclick={installUpdate}>
+        Mettre à jour v{updateVersion}
+      </button>
+    {/if}
+
+    <button class="menu-item" role="menuitem" onclick={checkUpdate}>
+      Rechercher une mise à jour
+    </button>
+
+    <div class="menu-divider"></div>
+
+    <button class="menu-item" role="menuitem" onclick={toggleStartup}>
+      {startupEnabled ? '✓' : '○'} Démarrer avec Windows
+    </button>
 
     <button class="menu-item" role="menuitem" onclick={restart}>
       Redémarrer
@@ -56,6 +84,7 @@
     <button class="menu-item menu-item--danger" role="menuitem" onclick={quit}>
       Quitter
     </button>
+
   </div>
 {/if}
 
@@ -69,7 +98,7 @@
   .context-menu {
     position: fixed;
     z-index: 100;
-    min-width: 180px;
+    min-width: 200px;
     background: rgba(18, 18, 18, 0.92);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -107,6 +136,14 @@
 
   .menu-item:hover {
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  .menu-item--update {
+    color: #ffd166;
+  }
+
+  .menu-item--update:hover {
+    background: rgba(255, 209, 102, 0.12);
   }
 
   .menu-item--danger:hover {

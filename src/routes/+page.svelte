@@ -2,15 +2,20 @@
   import '../app.css';
   import { onMount, onDestroy } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-
+  import { listen } from '@tauri-apps/api/event';
   import { load } from '@tauri-apps/plugin-store';
 
   import { metrics, startListening, stopListening } from '$lib/stores/metrics.svelte';
-  import MetricRow from '$lib/components/MetricRow.svelte';
-  import DiskRow from '$lib/components/DiskRow.svelte';
-  import NetworkRow from '$lib/components/NetworkRow.svelte';
-  import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import MetricRow    from '$lib/components/MetricRow.svelte';
+  import DiskRow      from '$lib/components/DiskRow.svelte';
+  import NetworkRow   from '$lib/components/NetworkRow.svelte';
+  import ContextMenu  from '$lib/components/ContextMenu.svelte';
+  import UpdateBanner from '$lib/components/UpdateBanner.svelte';
   import { formatBytes } from '$lib/utils/colors';
+
+  // ── Update state ─────────────────────────────────────────────────────────
+
+  let updateVersion = $state<string | null>(null);
 
   // ── Context menu state ───────────────────────────────────────────────────
 
@@ -18,21 +23,17 @@
   let menuX = $state(0);
   let menuY = $state(0);
 
-  const MENU_WIDTH  = 190; // matches ContextMenu min-width
-  const MENU_HEIGHT = 110; // approximate height (3 items)
+  const MENU_WIDTH  = 210;
+  const MENU_HEIGHT = 180;
 
   function onContextMenu(e: MouseEvent) {
     e.preventDefault();
-    // Flip left if menu would overflow the right edge of the window.
     menuX = e.clientX + MENU_WIDTH  > window.innerWidth  ? e.clientX - MENU_WIDTH  : e.clientX;
-    // Flip up if menu would overflow the bottom edge.
     menuY = e.clientY + MENU_HEIGHT > window.innerHeight ? e.clientY - MENU_HEIGHT : e.clientY;
     menuVisible = true;
   }
 
-  function closeMenu() {
-    menuVisible = false;
-  }
+  function closeMenu() { menuVisible = false; }
 
   // ── Position persistence ─────────────────────────────────────────────────
 
@@ -66,37 +67,33 @@
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   onMount(async () => {
-    // Always-on-bottom: sit behind desktop icons, above wallpaper.
     await getCurrentWindow().setAlwaysOnBottom(true);
-
-    // Restore last position.
     await restorePosition();
-
-    // Save position when the window is moved.
     await getCurrentWindow().onMoved(savePosition);
-
-    // Start receiving metrics from the Rust backend.
     await startListening();
+
+    // Listen for update notifications from the Rust backend.
+    await listen<{ version: string }>('update-available', (event) => {
+      updateVersion = event.payload.version;
+    });
   });
 
-  onDestroy(() => {
-    stopListening();
-  });
+  onDestroy(() => { stopListening(); });
 
-  const ramDetail = $derived(
-    `${formatBytes(metrics.ram.used)} / ${formatBytes(metrics.ram.total)}`
-  );
-
+  const ramDetail  = $derived(`${formatBytes(metrics.ram.used)} / ${formatBytes(metrics.ram.total)}`);
   const vramDetail = $derived(
-    metrics.gpu
-      ? `${formatBytes(metrics.gpu.vram_used)} / ${formatBytes(metrics.gpu.vram_total)}`
-      : ''
+    metrics.gpu ? `${formatBytes(metrics.gpu.vram_used)} / ${formatBytes(metrics.gpu.vram_total)}` : ''
   );
 </script>
 
-<ContextMenu x={menuX} y={menuY} visible={menuVisible} onclose={closeMenu} />
+<ContextMenu
+  x={menuX}
+  y={menuY}
+  visible={menuVisible}
+  updateVersion={updateVersion}
+  onclose={closeMenu}
+/>
 
-<!-- data-tauri-drag-region makes the entire widget draggable -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="widget"
@@ -106,34 +103,20 @@
   oncontextmenu={onContextMenu}
 >
 
-  <!-- CPU -->
-  <MetricRow
-    label="CPU"
-    percent={metrics.cpu.percent}
-    temp={metrics.cpu.temp}
-  />
-
-  <!-- GPU (only when detected) -->
-  {#if metrics.gpu}
-    <MetricRow
-      label="GPU"
-      percent={metrics.gpu.percent}
-      temp={metrics.gpu.temp}
-      detail={vramDetail}
-    />
+  {#if updateVersion}
+    <UpdateBanner version={updateVersion} />
   {/if}
 
-  <!-- RAM -->
-  <MetricRow
-    label="RAM"
-    percent={metrics.ram.percent}
-    detail={ramDetail}
-  />
+  <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} />
+
+  {#if metrics.gpu}
+    <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} />
+  {/if}
+
+  <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />
 
   {#if metrics.disks.length > 0}
     <div class="divider"></div>
-
-    <!-- Disks -->
     {#each metrics.disks as disk (disk.mount)}
       <DiskRow {disk} />
     {/each}
@@ -141,7 +124,6 @@
 
   <div class="divider"></div>
 
-  <!-- Network -->
   <NetworkRow network={metrics.network} />
 
 </div>
