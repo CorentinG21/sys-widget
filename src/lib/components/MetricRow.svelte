@@ -11,12 +11,14 @@
     temp?: number | null;
     /** Optional right-side detail, e.g. "7.2 / 16.0 GB". */
     detail?: string;
+    /** When true, renders the row in a muted "N/A" state (sensor unavailable). */
+    na?: boolean;
   }
 
-  const { label, percent, temp = null, detail = '' }: Props = $props();
+  const { label, percent, temp = null, detail = '', na = false }: Props = $props();
 
-  const color   = $derived(thresholdColor(percent));
-  const barWidth = $derived(Math.min(100, Math.max(0, percent)));
+  const color   = $derived(na ? 'rgba(255,255,255,0.25)' : thresholdColor(percent));
+  const barWidth = $derived(na ? 0 : Math.min(100, Math.max(0, percent)));
 </script>
 
 <div class="metric-row">
@@ -30,12 +32,16 @@
   </div>
 
   <span class="metric-values">
-    <span style="color: {color};">{percent.toFixed(0)}%</span>
-    {#if temp !== null && temp !== undefined}
-      <span class="metric-temp">{temp.toFixed(0)}°C</span>
-    {/if}
-    {#if detail}
-      <span class="metric-temp">{detail}</span>
+    {#if na}
+      <span style="color: {color};">N/A</span>
+    {:else}
+      <span style="color: {color};">{percent.toFixed(0)}%</span>
+      {#if temp !== null && temp !== undefined}
+        <span class="metric-temp">{temp.toFixed(0)}°C</span>
+      {/if}
+      {#if detail}
+        <span class="metric-temp">{detail}</span>
+      {/if}
     {/if}
   </span>
 </div>

@@ -111,6 +111,8 @@
 
   {#if metrics.gpu}
     <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} />
+  {:else}
+    <MetricRow label="GPU" percent={0} na={true} />
   {/if}
 
   <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />
