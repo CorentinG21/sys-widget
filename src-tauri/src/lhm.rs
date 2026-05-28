@@ -6,6 +6,13 @@ use std::{
     thread,
 };
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+/// Prevents a console window from appearing when spawning subprocesses.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 use serde::Deserialize;
 
 use crate::models::{GpuMetrics, LhmData};
@@ -64,8 +71,8 @@ pub struct LhmProcess {
 impl LhmProcess {
     /// Spawn the PowerShell subprocess.
     pub fn start(script_path: PathBuf) -> Result<Self, String> {
-        let mut child = Command::new("powershell")
-            .args([
+        let mut cmd = Command::new("powershell");
+        cmd.args([
                 "-NoProfile",
                 "-NonInteractive",
                 "-ExecutionPolicy",
@@ -74,7 +81,13 @@ impl LhmProcess {
                 script_path.to_str().ok_or("invalid script path")?,
             ])
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::null());
+
+        // Hide the PowerShell console window on Windows.
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let mut child = cmd
             .spawn()
             .map_err(|e| format!("failed to spawn LHM subprocess: {e}"))?;
 
