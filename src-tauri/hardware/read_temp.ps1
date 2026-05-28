@@ -97,11 +97,44 @@ function Get-GpuData {
     return $null
 }
 
+function Get-NvidiaFallback {
+    # Fallback pour les GPU NVIDIA que LHM ne detecte pas.
+    # nvidia-smi est installe avec les drivers NVIDIA (dans PATH ou NVSMI/).
+    $smiPaths = @(
+        'nvidia-smi',
+        'C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe',
+        'C:\Windows\System32\nvidia-smi.exe'
+    )
+    foreach ($smi in $smiPaths) {
+        try {
+            $out = & $smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>$null
+            if ($LASTEXITCODE -eq 0 -and $out) {
+                $parts = ($out.Trim() -split ',\s*')
+                if ($parts.Count -ge 4) {
+                    return [ordered]@{
+                        usage         = [float]$parts[0]
+                        temp          = [float]$parts[1]
+                        vram_used_mb  = [float]$parts[2]
+                        vram_total_mb = [float]$parts[3]
+                    }
+                }
+            }
+        } catch {}
+    }
+    return $null
+}
+
 try {
     while ($true) {
+        $gpuData = Get-GpuData $c.Hardware
+        # LHM ne detecte pas les GPU NVIDIA sur certains systemes -> fallback nvidia-smi
+        if ($null -eq $gpuData) {
+            $gpuData = Get-NvidiaFallback
+        }
+
         $obj = [ordered]@{
             cpu_temp = Get-CpuTemp $c.Hardware
-            gpu      = Get-GpuData $c.Hardware
+            gpu      = $gpuData
         }
         [Console]::WriteLine(($obj | ConvertTo-Json -Compress -Depth 3))
         [Console]::Out.Flush()

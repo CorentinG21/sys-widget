@@ -16,6 +16,10 @@ pub struct Monitor {
     /// Cached disk snapshot (refreshed at most every ~10 s).
     disk_cache: Vec<DiskInfo>,
     last_disk_refresh: Instant,
+    /// Rolling buffer of the last 3 raw CPU readings.
+    /// Averaging smooths out single-sample spikes from hardware driver queries.
+    cpu_history: [f32; 3],
+    cpu_history_idx: usize,
 }
 
 impl Monitor {
@@ -45,21 +49,23 @@ impl Monitor {
             last_net_poll: Instant::now(),
             disk_cache,
             last_disk_refresh: Instant::now(),
+            cpu_history: [0.0; 3],
+            cpu_history_idx: 0,
         }
     }
 
     /// Refresh all sensors and return current snapshots.
     /// Disks are re-queried at most once every 10 seconds.
     pub fn collect(&mut self) -> (f32, RamMetrics, Vec<DiskInfo>, NetworkMetrics) {
-        // CPU
+        // CPU — rolling average over 3 samples to smooth hardware-driver spikes
         self.sys.refresh_cpu_usage();
-        let cpu_percent = self
-            .sys
-            .cpus()
-            .iter()
-            .map(|c| c.cpu_usage())
-            .sum::<f32>()
+        let raw_cpu = self.sys.cpus().iter().map(|c| c.cpu_usage()).sum::<f32>()
             / self.sys.cpus().len() as f32;
+        self.cpu_history[self.cpu_history_idx % 3] = raw_cpu;
+        self.cpu_history_idx = self.cpu_history_idx.wrapping_add(1);
+        // Until the buffer is full (first 2 calls) use only the readings we have.
+        let filled = self.cpu_history_idx.min(3);
+        let cpu_percent = self.cpu_history[..filled].iter().sum::<f32>() / filled as f32;
 
         // RAM
         self.sys.refresh_memory();

@@ -23,8 +23,8 @@
   let menuX = $state(0);
   let menuY = $state(0);
 
-  const MENU_WIDTH  = 210;
-  const MENU_HEIGHT = 180;
+  const MENU_WIDTH  = 230;   // min-width 200px + borders + "Rechercher une mise à jour" overflow
+  const MENU_HEIGHT = 210;   // ~7 items × 26px + dividers + padding
 
   function onContextMenu(e: MouseEvent) {
     e.preventDefault();
