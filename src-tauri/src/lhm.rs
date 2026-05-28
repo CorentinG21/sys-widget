@@ -6,11 +6,56 @@ use std::{
     thread,
 };
 
-use crate::models::LhmData;
+use serde::Deserialize;
+
+use crate::models::{GpuMetrics, LhmData};
+
+// ─── Raw structs matching read_temp.ps1 JSON output ──────────────────────────
+//
+// The PS script emits:
+//   { "cpu_temp": 45.0,
+//     "gpu": { "usage": 30.0, "temp": 65.0,
+//              "vram_used_mb": 2048.0, "vram_total_mb": 8192.0 } }
+//
+// Field names and units differ from GpuMetrics (which uses bytes + "percent").
+
+#[derive(Debug, Deserialize)]
+struct RawGpu {
+    usage: Option<f32>,
+    temp: Option<f32>,
+    vram_used_mb: Option<f32>,
+    vram_total_mb: Option<f32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawLhm {
+    cpu_temp: Option<f32>,
+    gpu: Option<RawGpu>,
+}
+
+impl From<RawLhm> for LhmData {
+    fn from(raw: RawLhm) -> Self {
+        let gpu = raw.gpu.and_then(|g| {
+            // Only expose GPU if we have at least a load reading.
+            let percent = g.usage?;
+            Some(GpuMetrics {
+                percent,
+                temp: g.temp,
+                // PS reports VRAM in MB; convert to bytes.
+                vram_used: g.vram_used_mb.unwrap_or(0.0) as u64 * 1_048_576,
+                vram_total: g.vram_total_mb.unwrap_or(0.0) as u64 * 1_048_576,
+            })
+        });
+        LhmData {
+            cpu_temp: raw.cpu_temp,
+            gpu,
+        }
+    }
+}
+
+// ─── LhmProcess ──────────────────────────────────────────────────────────────
 
 /// Manages a persistent PowerShell subprocess running `read_temp.ps1`.
-/// The subprocess emits one JSON line every ~2 s:
-///   {"cpu_temp": 45.0, "gpu": {"name": "...", "percent": 30.0, ...}}
 pub struct LhmProcess {
     child: Child,
     pub data: Arc<Mutex<LhmData>>,
@@ -18,7 +63,6 @@ pub struct LhmProcess {
 
 impl LhmProcess {
     /// Spawn the PowerShell subprocess.
-    /// `script_path` must point to the bundled `read_temp.ps1`.
     pub fn start(script_path: PathBuf) -> Result<Self, String> {
         let mut child = Command::new("powershell")
             .args([
@@ -27,19 +71,14 @@ impl LhmProcess {
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                script_path
-                    .to_str()
-                    .ok_or("invalid script path")?,
+                script_path.to_str().ok_or("invalid script path")?,
             ])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
             .map_err(|e| format!("failed to spawn LHM subprocess: {e}"))?;
 
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or("could not capture stdout")?;
+        let stdout = child.stdout.take().ok_or("could not capture stdout")?;
 
         let data: Arc<Mutex<LhmData>> = Arc::new(Mutex::new(LhmData::default()));
         let data_clone = Arc::clone(&data);
@@ -53,10 +92,10 @@ impl LhmProcess {
                 if line.is_empty() {
                     continue;
                 }
-                match serde_json::from_str::<LhmData>(&line) {
-                    Ok(parsed) => {
+                match serde_json::from_str::<RawLhm>(&line) {
+                    Ok(raw) => {
                         if let Ok(mut guard) = data_clone.lock() {
-                            *guard = parsed;
+                            *guard = raw.into();
                         }
                     }
                     Err(e) => {
@@ -84,16 +123,32 @@ impl LhmProcess {
 mod tests {
     use super::*;
 
-    /// Smoke-test: default LhmData serialises / deserialises correctly.
     #[test]
-    fn lhm_data_roundtrip() {
-        let data = LhmData {
-            cpu_temp: Some(55.0),
-            gpu: None,
-        };
-        let json = serde_json::to_string(&data).unwrap();
-        let back: LhmData = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.cpu_temp, Some(55.0));
-        assert!(back.gpu.is_none());
+    fn raw_lhm_converts_to_lhm_data() {
+        let json = r#"{"cpu_temp":55.0,"gpu":{"usage":30.0,"temp":65.0,"vram_used_mb":2048.0,"vram_total_mb":8192.0}}"#;
+        let raw: RawLhm = serde_json::from_str(json).unwrap();
+        let data: LhmData = raw.into();
+        assert_eq!(data.cpu_temp, Some(55.0));
+        let gpu = data.gpu.unwrap();
+        assert_eq!(gpu.percent, 30.0);
+        assert_eq!(gpu.temp, Some(65.0));
+        assert_eq!(gpu.vram_used,  2048_u64 * 1_048_576);
+        assert_eq!(gpu.vram_total, 8192_u64 * 1_048_576);
+    }
+
+    #[test]
+    fn null_gpu_usage_hides_gpu() {
+        let json = r#"{"cpu_temp":45.0,"gpu":{"usage":null,"temp":70.0,"vram_used_mb":null,"vram_total_mb":null}}"#;
+        let raw: RawLhm = serde_json::from_str(json).unwrap();
+        let data: LhmData = raw.into();
+        assert!(data.gpu.is_none(), "GPU with null usage should be hidden");
+    }
+
+    #[test]
+    fn null_gpu_field_gives_none() {
+        let json = r#"{"cpu_temp":40.0,"gpu":null}"#;
+        let raw: RawLhm = serde_json::from_str(json).unwrap();
+        let data: LhmData = raw.into();
+        assert!(data.gpu.is_none());
     }
 }

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
-use tokio::time;
+use tokio::time::{self, Instant};
 
 use lhm::LhmProcess;
 use models::MetricsPayload;
@@ -51,9 +51,12 @@ pub fn run() {
             let lhm_for_cleanup = Arc::clone(&lhm);
             let mut monitor = Monitor::new();
 
-            // 2-second metrics loop (async Tokio task).
-            tokio::spawn(async move {
-                let mut ticker = time::interval(Duration::from_secs(2));
+            // 2-second metrics loop — use Tauri's built-in Tokio runtime.
+            // interval_at delays the first tick by 2s so sysinfo has a full
+            // measurement window before the first CPU% calculation.
+            tauri::async_runtime::spawn(async move {
+                let start = Instant::now() + Duration::from_secs(2);
+                let mut ticker = time::interval_at(start, Duration::from_secs(2));
                 loop {
                     ticker.tick().await;
 

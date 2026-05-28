@@ -12,7 +12,6 @@ pub struct CpuMetrics {
 /// GPU metrics from LHM (single GPU or first discrete GPU).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpuMetrics {
-    pub name: String,
     /// Load percentage 0–100.
     pub percent: f32,
     /// Core temperature in °C.

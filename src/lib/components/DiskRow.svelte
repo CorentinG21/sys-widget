@@ -23,7 +23,7 @@
   );
 </script>
 
-<div class="metric-row">
+<div class="metric-row disk-row">
   <span class="metric-label">{mountLabel}</span>
 
   <div class="bar-track">

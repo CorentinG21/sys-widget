@@ -64,11 +64,23 @@ html, body {
   cursor: default;
 }
 
+/* ── All widget children are non-interactive: clicks fall through to .widget
+      which carries data-tauri-drag-region and oncontextmenu.
+      Interactive descendants (e.g. future UpdateBanner) must set pointer-events: auto. ── */
+.widget * {
+  pointer-events: none;
+}
+
 /* ── Section divider ── */
 .divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.07);
-  margin: 2px 0;
+  margin: 4px 0;
+}
+
+/* ── Disk rows get a bit more vertical breathing room ── */
+.disk-row {
+  padding: 2px 0;
 }
 
 /* ── Progress bar ── */

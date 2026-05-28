@@ -1,5 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { getVersion } from '@tauri-apps/api/app';
+  import { onMount } from 'svelte';
 
   interface Props {
     x: number;
@@ -9,6 +11,12 @@
   }
 
   const { x, y, visible, onclose }: Props = $props();
+
+  let version = $state('…');
+
+  onMount(async () => {
+    version = await getVersion();
+  });
 
   async function restart() {
     onclose();
@@ -32,10 +40,19 @@
     style="left: {x}px; top: {y}px;"
     role="menu"
   >
+    <!-- Version — disabled informational item -->
+    <div class="menu-version" role="menuitem" aria-disabled="true">
+      SysmonWidget v{version}
+    </div>
+
+    <div class="menu-divider"></div>
+
     <button class="menu-item" role="menuitem" onclick={restart}>
       Redémarrer
     </button>
+
     <div class="menu-divider"></div>
+
     <button class="menu-item menu-item--danger" role="menuitem" onclick={quit}>
       Quitter
     </button>
@@ -52,7 +69,7 @@
   .context-menu {
     position: fixed;
     z-index: 100;
-    min-width: 160px;
+    min-width: 180px;
     background: rgba(18, 18, 18, 0.92);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -63,6 +80,14 @@
     font-size: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
     overflow: hidden;
+  }
+
+  .menu-version {
+    padding: 7px 14px;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 11px;
+    cursor: default;
+    user-select: none;
   }
 
   .menu-item {
@@ -77,6 +102,7 @@
     text-align: left;
     cursor: pointer;
     transition: background 0.15s;
+    pointer-events: auto;
   }
 
   .menu-item:hover {
