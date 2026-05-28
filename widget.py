@@ -363,12 +363,23 @@ class DesktopWidget(QWidget):
         try:
             ps1 = os.path.join(tempfile.gettempdir(), 'sysmon_restart.ps1')
             if getattr(sys, 'frozen', False):
-                mei_cleanup = (
-                    f'Remove-Item -Path "{mei_path}" -Recurse -Force '
-                    f'-ErrorAction SilentlyContinue\n'
-                ) if mei_path else ''
+                # Boucle de retry pour la suppression de _MEI : attend que
+                # Windows libère tous les handles (antivirus, Search Index…).
+                if mei_path:
+                    mei_lines = (
+                        f'$mei = "{mei_path}"\n'
+                        f'$r = 0\n'
+                        f'while ((Test-Path $mei) -and ($r -lt 10)) {{\n'
+                        f'    Remove-Item -Path $mei -Recurse -Force '
+                        f'-ErrorAction SilentlyContinue\n'
+                        f'    if (Test-Path $mei) {{ Start-Sleep -Milliseconds 500 }}\n'
+                        f'    $r++\n'
+                        f'}}\n'
+                    )
+                else:
+                    mei_lines = ''
                 launch_lines = (
-                    mei_cleanup +
+                    mei_lines +
                     f'Unblock-File -Path "{exe}" -ErrorAction SilentlyContinue\n'
                     f'Start-Process -FilePath "{exe}"\n'
                 )
@@ -381,23 +392,33 @@ class DesktopWidget(QWidget):
                 f'$p = {pid}\n'
                 f'while (Get-Process -Id $p -ErrorAction SilentlyContinue)'
                 f' {{ Start-Sleep -Milliseconds 200 }}\n'
-                # 3s supplémentaires : garantit que le process est mort et que
-                # Windows a libéré tous les handles sur les fichiers de _MEI,
-                # même si Get-Process ne peut pas voir un process elevated.
+                # 3s : garantit que le process est mort et que Windows a libéré
+                # tous les handles sur les fichiers de _MEI, même si
+                # Get-Process ne peut pas voir un process elevated.
                 f'Start-Sleep -Seconds 3\n'
                 + launch_lines +
                 f'Remove-Item -Path "{ps1}" -Force -ErrorAction SilentlyContinue\n'
             )
             with open(ps1, 'w', encoding='utf-8') as f:
                 f.write(ps_content)
-            subprocess.Popen(
-                ['powershell', '-NonInteractive', '-NoProfile',
-                 '-ExecutionPolicy', 'Bypass', '-File', ps1],
-                creationflags=(subprocess.CREATE_NO_WINDOW |
-                               subprocess.CREATE_BREAKAWAY_FROM_JOB),
-                close_fds=True,
-            )
-            ps_launched = True
+            # CREATE_BREAKAWAY_FROM_JOB peut échouer (ERROR_ACCESS_DENIED) si
+            # le job Task Scheduler n'autorise pas le breakaway.  On essaie
+            # plusieurs combinaisons de flags pour maximiser les chances.
+            _NW = subprocess.CREATE_NO_WINDOW
+            _DP = subprocess.DETACHED_PROCESS
+            _BJ = subprocess.CREATE_BREAKAWAY_FROM_JOB
+            for _flags in (_NW | _DP | _BJ, _NW | _BJ, _NW | _DP, _NW):
+                try:
+                    subprocess.Popen(
+                        ['powershell', '-NonInteractive', '-NoProfile',
+                         '-ExecutionPolicy', 'Bypass', '-File', ps1],
+                        creationflags=_flags,
+                        close_fds=True,
+                    )
+                    ps_launched = True
+                    break
+                except Exception:
+                    continue
         except Exception:
             pass
 
