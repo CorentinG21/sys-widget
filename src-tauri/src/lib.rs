@@ -13,9 +13,15 @@ use models::MetricsPayload;
 use monitor::Monitor;
 
 /// Tauri command: restart the application cleanly.
+/// Spawns a new instance of the current executable then exits.
+/// Using explicit spawn+exit instead of app.restart() to avoid a WebView2
+/// teardown race that can kill the process before the new instance is launched.
 #[tauri::command]
 fn restart_app(app: AppHandle) {
-    app.restart();
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::process::Command::new(exe).spawn();
+    }
+    app.exit(0);
 }
 
 /// Tauri command: quit the application.
@@ -34,12 +40,28 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             // Locate the bundled read_temp.ps1.
-            let script_path = app_handle
-                .path()
-                .resource_dir()
-                .expect("resource_dir unavailable")
-                .join("hardware")
-                .join("read_temp.ps1");
+            // In production: resource_dir() points to the bundle resources.
+            // In dev mode:   resource_dir() → target/debug/ where hardware/ is
+            //                NOT present, so fall back to CARGO_MANIFEST_DIR
+            //                (= src-tauri/) which always has hardware/ next to it.
+            let script_path = {
+                let prod_path = app_handle
+                    .path()
+                    .resource_dir()
+                    .ok()
+                    .map(|p| p.join("hardware").join("read_temp.ps1"));
+
+                match prod_path.filter(|p| p.exists()) {
+                    Some(p) => p,
+                    None => {
+                        // Dev fallback: hardware/ lives next to Cargo.toml
+                        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                            .join("hardware")
+                            .join("read_temp.ps1")
+                    }
+                }
+            };
+            eprintln!("[lhm] script_path = {:?} (exists={})", script_path, script_path.exists());
 
             // Spawn LHM subprocess (non-fatal if unavailable).
             let lhm: Arc<Mutex<Option<LhmProcess>>> = Arc::new(Mutex::new(

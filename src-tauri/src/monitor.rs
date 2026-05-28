@@ -22,6 +22,12 @@ impl Monitor {
     pub fn new() -> Self {
         let mut sys = System::new_all();
         sys.refresh_all();
+        // sysinfo needs two CPU snapshots separated by at least
+        // MINIMUM_CPU_UPDATE_INTERVAL to produce accurate readings.
+        // Without this warmup the first collect() can return garbage (100%).
+        std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+        sys.refresh_cpu_usage();
+
         let mut networks = Networks::new_with_refreshed_list();
         networks.refresh();
         let (sent, recv) = total_net_bytes(&networks);

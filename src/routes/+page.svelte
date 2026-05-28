@@ -18,10 +18,15 @@
   let menuX = $state(0);
   let menuY = $state(0);
 
+  const MENU_WIDTH  = 190; // matches ContextMenu min-width
+  const MENU_HEIGHT = 110; // approximate height (3 items)
+
   function onContextMenu(e: MouseEvent) {
     e.preventDefault();
-    menuX = e.clientX;
-    menuY = e.clientY;
+    // Flip left if menu would overflow the right edge of the window.
+    menuX = e.clientX + MENU_WIDTH  > window.innerWidth  ? e.clientX - MENU_WIDTH  : e.clientX;
+    // Flip up if menu would overflow the bottom edge.
+    menuY = e.clientY + MENU_HEIGHT > window.innerHeight ? e.clientY - MENU_HEIGHT : e.clientY;
     menuVisible = true;
   }
 
