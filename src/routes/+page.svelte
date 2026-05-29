@@ -112,17 +112,18 @@
 
   <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} />
 
+  {#if metrics.top_cpu}
+    <div class="top-process">
+      <span class="top-arrow">›</span>
+      <span class="top-name">{metrics.top_cpu.name}</span>
+      <span class="top-pct">{metrics.top_cpu.cpu_percent.toFixed(0)}%</span>
+    </div>
+  {/if}
+
   {#if metrics.gpu}
     <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
   {:else}
     <MetricRow label="GPU" percent={0} na={true} />
-  {/if}
-
-  {#if metrics.top_cpu}
-    <div class="top-process">
-      🔥 <span class="top-name">{metrics.top_cpu.name}</span>
-      <span class="top-pct">{metrics.top_cpu.cpu_percent.toFixed(0)}%</span>
-    </div>
   {/if}
 
   <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />

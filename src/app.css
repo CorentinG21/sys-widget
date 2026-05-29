@@ -77,29 +77,35 @@ html, body {
   pointer-events: auto;
 }
 
-/* ── Top process row (below CPU) ── */
+/* ── Top process row (sub-row of CPU) ── */
 .top-process {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
-  padding-left: 2px;
-  margin-top: -2px;
+  /* Indent to align with the bar track, just like a metric-row's bar */
+  padding-left: calc(var(--label-width) + 8px);
+  margin-top: -3px;   /* tight visual link to the CPU row above */
+  font-size: 10px;
+}
+
+.top-arrow {
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
 }
 
 .top-name {
-  color: rgba(255, 255, 255, 0.65);
-  max-width: 140px;
+  color: rgba(255, 255, 255, 0.50);
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .top-pct {
-  color: var(--color-warn);
+  color: rgba(255, 255, 255, 0.40);
   font-variant-numeric: tabular-nums;
-  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* ── Section divider ── */
