@@ -33,7 +33,7 @@
 
   .lbl {
     color: rgba(255, 255, 255, 0.45);
-    font-size: 10px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     width: 36px;
@@ -43,6 +43,6 @@
   .net-values {
     display: flex;
     gap: 12px;
-    font-size: 11px;
+    font-size: 12px;
   }
 </style>
