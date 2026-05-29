@@ -13,43 +13,36 @@
 </script>
 
 <div class="metric-row net-row">
-  <span class="metric-label">NET</span>
-
-  <span class="net-values">
-    <span class="net-item">
-      <span class="net-arrow" style="color: {uploadColor};">↑</span>
-      <span style="color: {uploadColor}; font-variant-numeric: tabular-nums;">
-        {formatRate(network.upload)}
-      </span>
+  <span class="lbl">NET</span>
+  <div class="net-values">
+    <span style="color: {uploadColor}; font-variant-numeric: tabular-nums;">
+      ↑ {formatRate(network.upload)}
     </span>
-    <span class="net-item">
-      <span class="net-arrow" style="color: {downloadColor};">↓</span>
-      <span style="color: {downloadColor}; font-variant-numeric: tabular-nums;">
-        {formatRate(network.download)}
-      </span>
+    <span style="color: {downloadColor}; font-variant-numeric: tabular-nums;">
+      ↓ {formatRate(network.download)}
     </span>
-  </span>
+  </div>
 </div>
 
 <style>
   .net-row {
+    display: flex;
     align-items: center;
+    gap: 8px;
+  }
+
+  .lbl {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    width: 36px;
+    flex-shrink: 0;
   }
 
   .net-values {
-    flex: 1;
     display: flex;
     gap: 12px;
-    font-size: 12px;
-  }
-
-  .net-item {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-  }
-
-  .net-arrow {
     font-size: 11px;
   }
 </style>
