@@ -35,7 +35,7 @@
 </script>
 
 <div class="metric-row">
-  <!-- Main line: label | bar | % -->
+  <!-- Main line: label | bar | % — sparkline anchors here so it centers on the bar -->
   <div class="main-line">
     <span class="lbl">{label}</span>
     <div class="bar-track">
@@ -44,38 +44,39 @@
     <span class="pct" style="color: {color};">
       {#if na}N/A{:else}{percent.toFixed(0)}%{/if}
     </span>
+
+    <!-- Sparkline anchored inside main-line so top:50% centers on bar height, not sub-line -->
+    {#if history.length >= 2 && !na}
+      <div class="sparkline-wrap">
+        <Sparkline values={history} {color} />
+      </div>
+    {/if}
   </div>
 
   <!-- Sub-line: temp · detail · subExtra -->
   {#if hasSubline}
     <div class="sub-line">
-      {#if temp !== null && temp !== undefined}
-        <span>{temp.toFixed(0)}°C</span>
+      {#if temp !== null}
+        <span class="sub-fixed">{temp.toFixed(0)}°C</span>
       {/if}
       {#if detail}
-        <span>{detail}</span>
+        <span class="sub-fixed">{detail}</span>
       {/if}
       {#if subExtra}
         <span class="sub-extra">{subExtra}</span>
       {/if}
     </div>
   {/if}
-
-  <!-- Sparkline overlay — visible on :hover -->
-  {#if history.length >= 2 && !na}
-    <div class="sparkline-wrap">
-      <Sparkline values={history} {color} />
-    </div>
-  {/if}
 </div>
 
 <style>
   .metric-row {
-    position: relative;
+    /* no position:relative needed — sparkline anchors to .main-line now */
   }
 
   /* ── Main line: label | bar | % ── */
   .main-line {
+    position: relative; /* sparkline-wrap anchors here */
     display: grid;
     grid-template-columns: 36px 1fr 28px;
     gap: 6px;
@@ -118,13 +119,19 @@
     font-size: 9px;
     color: rgba(255, 255, 255, 0.28);
     overflow: hidden;
+    white-space: nowrap;
   }
 
+  /* temp/detail are short — don't let them shrink or wrap */
+  .sub-fixed {
+    flex-shrink: 0;
+  }
+
+  /* subExtra (top process) takes remaining space and truncates */
   .sub-extra {
     color: rgba(255, 255, 255, 0.18);
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
     flex: 1;
     min-width: 0;
   }
