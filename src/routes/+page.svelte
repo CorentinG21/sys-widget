@@ -114,7 +114,7 @@
 
   {#if metrics.top_cpu}
     <div class="top-process">
-      <span class="top-arrow">›</span>
+      <span class="top-arrow">🔥</span>
       <span class="top-name">{metrics.top_cpu.name}</span>
       <span class="top-pct">{metrics.top_cpu.cpu_percent.toFixed(0)}%</span>
     </div>
