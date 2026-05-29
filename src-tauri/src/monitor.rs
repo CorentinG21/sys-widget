@@ -142,13 +142,32 @@ impl Monitor {
     }
 }
 
+/// Returns true for real/useful interfaces — excludes loopback and common
+/// Windows virtual adapters (Hyper-V, WSL, VirtualBox, VMware, Bluetooth).
+fn is_real_interface(name: &str) -> bool {
+    let lo = name.to_lowercase();
+    // Loopback
+    if lo.contains("loopback") || name == "lo" { return false; }
+    // Hyper-V virtual switches (vEthernet (Default Switch), vEthernet (WSL), …)
+    if lo.starts_with("vethernet") { return false; }
+    // VirtualBox host-only adapters
+    if lo.contains("virtualbox") { return false; }
+    // VMware virtual adapters
+    if lo.contains("vmware") || lo.contains("vmnet") { return false; }
+    // Generic virtual / pseudo
+    if lo.contains("virtual") || lo.contains("pseudo") { return false; }
+    // Bluetooth (rarely useful for bandwidth monitoring)
+    if lo.contains("bluetooth") { return false; }
+    true
+}
+
 /// Compute per-interface upload/download rates (bytes/s).
 ///
 /// Filters:
-///   - Loopback interfaces are excluded (name contains "loopback" or equals "lo").
-///   - Interfaces with zero cumulative traffic are excluded (never used).
+///   - Virtual/loopback interfaces excluded (see `is_real_interface`).
+///   - Interfaces with zero cumulative traffic excluded (never used).
 ///
-/// Sorted by current activity (upload + download) descending.
+/// Sorted by current activity descending. Capped at 3 interfaces.
 fn collect_network(
     networks: &Networks,
     prev: &mut HashMap<String, (u64, u64)>,
@@ -157,9 +176,8 @@ fn collect_network(
     let mut result: Vec<NetworkInterface> = networks
         .iter()
         .filter(|(name, data)| {
-            let lo = name.to_lowercase().contains("loopback") || name.as_str() == "lo";
             let unused = data.total_transmitted() == 0 && data.total_received() == 0;
-            !lo && !unused
+            is_real_interface(name) && !unused
         })
         .map(|(name, data)| {
             let total_sent = data.total_transmitted();
@@ -193,6 +211,8 @@ fn collect_network(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // Cap at 3 to keep the widget compact
+    result.truncate(3);
     result
 }
 
