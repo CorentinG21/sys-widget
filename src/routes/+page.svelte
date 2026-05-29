@@ -28,8 +28,11 @@
 
   function onContextMenu(e: MouseEvent) {
     e.preventDefault();
-    menuX = e.clientX + MENU_WIDTH  > window.innerWidth  ? e.clientX - MENU_WIDTH  : e.clientX;
-    menuY = e.clientY + MENU_HEIGHT > window.innerHeight ? e.clientY - MENU_HEIGHT : e.clientY;
+    // Flip left/up if the menu would overflow the window, then clamp to [0, max].
+    const rawX = e.clientX + MENU_WIDTH  > window.innerWidth  ? e.clientX - MENU_WIDTH  : e.clientX;
+    const rawY = e.clientY + MENU_HEIGHT > window.innerHeight ? e.clientY - MENU_HEIGHT : e.clientY;
+    menuX = Math.max(0, Math.min(rawX, window.innerWidth  - MENU_WIDTH));
+    menuY = Math.max(0, Math.min(rawY, window.innerHeight - MENU_HEIGHT));
     menuVisible = true;
   }
 

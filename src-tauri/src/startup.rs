@@ -1,12 +1,23 @@
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+/// Prevents a console window from appearing when spawning subprocesses.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 const TASK_NAME: &str = "SysmonWidget";
 
 /// Returns true if the SysmonWidget scheduled task exists.
 pub fn is_registered() -> bool {
-    Command::new("schtasks")
-        .args(["/Query", "/TN", TASK_NAME])
-        .output()
+    let mut cmd = Command::new("schtasks");
+    cmd.args(["/Query", "/TN", TASK_NAME]);
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    cmd.output()
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -14,11 +25,9 @@ pub fn is_registered() -> bool {
 /// Creates an ONLOGON task that runs the given exe with highest privileges.
 /// Returns true on success.
 pub fn register(exe_path: &str) -> bool {
-    // Build a one-liner PowerShell command to create the task with RL HIGHEST.
-    // schtasks /Create doesn't support RunLevel directly — use New-ScheduledTask.
     let ps = format!(
-        r#"$action  = New-ScheduledTaskAction  -Execute '{exe}';
-$trigger = New-ScheduledTaskTrigger  -AtLogOn;
+        r#"$action   = New-ScheduledTaskAction  -Execute '{exe}';
+$trigger  = New-ScheduledTaskTrigger  -AtLogOn;
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries;
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;
 Register-ScheduledTask -TaskName '{name}' -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null"#,
@@ -26,28 +35,41 @@ Register-ScheduledTask -TaskName '{name}' -Action $action -Trigger $trigger -Set
         name = TASK_NAME,
     );
 
-    Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &ps])
-        .output()
-        .map(|o| o.status.success())
+    let mut cmd = Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &ps]);
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    cmd.output()
+        .map(|o| {
+            if !o.status.success() {
+                eprintln!("[startup] register failed: {}", String::from_utf8_lossy(&o.stderr));
+            }
+            o.status.success()
+        })
         .unwrap_or(false)
 }
 
 /// Removes the scheduled task. Returns true on success.
 pub fn unregister() -> bool {
-    Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &format!(
-                "Unregister-ScheduledTask -TaskName '{}' -Confirm:$false",
-                TASK_NAME
-            ),
-        ])
-        .output()
+    let mut cmd = Command::new("powershell");
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        &format!(
+            "Unregister-ScheduledTask -TaskName '{}' -Confirm:$false",
+            TASK_NAME
+        ),
+    ]);
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    cmd.output()
         .map(|o| o.status.success())
         .unwrap_or(false)
 }

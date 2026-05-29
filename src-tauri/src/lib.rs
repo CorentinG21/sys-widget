@@ -37,11 +37,10 @@ fn startup_is_registered() -> bool {
 
 /// Toggle the startup task. Returns the new state (true = enabled).
 #[tauri::command]
-fn startup_toggle(app: AppHandle) -> bool {
-    let exe = app
-        .path()
-        .resolve("sysmon-widget.exe", tauri::path::BaseDirectory::Resource)
-        .unwrap_or_else(|_| std::env::current_exe().unwrap_or_default());
+fn startup_toggle() -> bool {
+    // Use the path of the currently-running exe — always correct regardless
+    // of install location (currentUser NSIS, dev build, etc.).
+    let exe = std::env::current_exe().unwrap_or_default();
     startup::toggle(exe.to_string_lossy().as_ref())
 }
 
