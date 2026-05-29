@@ -144,8 +144,11 @@
     {/each}
   {/if}
 
-  <div class="divider"></div>
-
-  <NetworkRow network={metrics.network} />
+  {#if metrics.network.length > 0}
+    <div class="divider"></div>
+    {#each metrics.network as iface (iface.name)}
+      <NetworkRow {iface} />
+    {/each}
+  {/if}
 
 </div>

@@ -27,7 +27,9 @@ export interface DiskInfo {
   total: number;
 }
 
-export interface NetworkMetrics {
+export interface NetworkInterface {
+  /** OS interface name, e.g. "Wi-Fi", "Ethernet". */
+  name: string;
   upload: number;
   download: number;
 }
@@ -43,7 +45,7 @@ export interface MetricsPayload {
   gpu: GpuMetrics | null;
   ram: RamMetrics;
   disks: DiskInfo[];
-  network: NetworkMetrics;
+  network: NetworkInterface[];
   top_cpu: TopProcess | null;
 }
 
@@ -54,7 +56,7 @@ export const metrics = $state<MetricsPayload>({
   gpu:     null,
   ram:     { percent: 0, used: 0, total: 0 },
   disks:   [],
-  network: { upload: 0, download: 0 },
+  network: [],
   top_cpu: null,
 });
 
