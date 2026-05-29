@@ -12,7 +12,7 @@
   const downloadColor = $derived(netColors(network.download).download);
 </script>
 
-<div class="metric-row net-row">
+<div class="metric-row net-row" data-tauri-drag-region>
   <span class="lbl">NET</span>
   <div class="net-values">
     <span style="color: {uploadColor}; font-variant-numeric: tabular-nums;">

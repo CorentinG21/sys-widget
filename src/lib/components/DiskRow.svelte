@@ -21,7 +21,7 @@
   const detail = $derived(`${formatBytes(disk.used)} / ${formatBytes(disk.total)}`);
 </script>
 
-<div class="metric-row">
+<div class="metric-row" data-tauri-drag-region>
   <!-- Main line: label | bar | % -->
   <div class="main-line">
     <span class="lbl">{mountLabel}</span>
