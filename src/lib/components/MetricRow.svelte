@@ -87,7 +87,6 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    flex-shrink: 0;
   }
 
   .bar-track {
