@@ -7,48 +7,61 @@
     label: string;
     /** Usage 0–100. */
     percent: number;
-    /** Optional temperature in °C. */
+    /** Optional temperature in °C — shown on sub-line. */
     temp?: number | null;
-    /** Optional right-side detail, e.g. "7.2 / 16.0 GB". */
+    /** Optional detail string (e.g. "12.8 / 31.9 GB") — shown on sub-line. */
     detail?: string;
     /** When true, renders the row in a muted "N/A" state (sensor unavailable). */
     na?: boolean;
     /** Historical readings for the sparkline (last 30 s). */
     history?: number[];
+    /** Extra text appended to the sub-line (e.g. "🔥 chrome.exe · 3%"). */
+    subExtra?: string;
   }
 
-  const { label, percent, temp = null, detail = '', na = false, history = [] }: Props = $props();
+  const {
+    label,
+    percent,
+    temp = null,
+    detail = '',
+    na = false,
+    history = [],
+    subExtra = '',
+  }: Props = $props();
 
   const color    = $derived(na ? 'rgba(255,255,255,0.25)' : thresholdColor(percent));
   const barWidth = $derived(na ? 0 : Math.min(100, Math.max(0, percent)));
+  const hasSubline = $derived(!na && (temp !== null || !!detail || !!subExtra));
 </script>
 
-<!-- pointer-events: auto on the row so :hover works for the sparkline.
-     mousedown still bubbles to .widget for drag-region. -->
 <div class="metric-row">
-  <span class="metric-label">{label}</span>
-
-  <div class="bar-track">
-    <div
-      class="bar-fill"
-      style="width: {barWidth}%; background: {color};"
-    ></div>
+  <!-- Main line: label | bar | % -->
+  <div class="main-line">
+    <span class="lbl">{label}</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: {barWidth}%; background: {color};"></div>
+    </div>
+    <span class="pct" style="color: {color};">
+      {#if na}N/A{:else}{percent.toFixed(0)}%{/if}
+    </span>
   </div>
 
-  <span class="metric-values">
-    {#if na}
-      <span style="color: {color};">N/A</span>
-    {:else}
-      <span style="color: {color};">{percent.toFixed(0)}%</span>
+  <!-- Sub-line: temp · detail · subExtra -->
+  {#if hasSubline}
+    <div class="sub-line">
       {#if temp !== null && temp !== undefined}
-        <span class="metric-temp">{temp.toFixed(0)}°C</span>
+        <span>{temp.toFixed(0)}°C</span>
       {/if}
       {#if detail}
-        <span class="metric-temp">{detail}</span>
+        <span>{detail}</span>
       {/if}
-    {/if}
-  </span>
+      {#if subExtra}
+        <span class="sub-extra">{subExtra}</span>
+      {/if}
+    </div>
+  {/if}
 
+  <!-- Sparkline overlay — visible on :hover -->
   {#if history.length >= 2 && !na}
     <div class="sparkline-wrap">
       <Sparkline values={history} {color} />
@@ -57,7 +70,67 @@
 </div>
 
 <style>
-  /* sparkline hidden by default, visible on row hover */
+  .metric-row {
+    position: relative;
+  }
+
+  /* ── Main line: label | bar | % ── */
+  .main-line {
+    display: grid;
+    grid-template-columns: 36px 1fr 28px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .lbl {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease, background-color 0.3s ease;
+    min-width: 2px;
+  }
+
+  .pct {
+    font-size: 11px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Sub-line ── */
+  .sub-line {
+    display: flex;
+    gap: 8px;
+    padding-left: 42px; /* 36px label + 6px gap */
+    margin-top: 2px;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.28);
+    overflow: hidden;
+  }
+
+  .sub-extra {
+    color: rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* ── Sparkline overlay ── */
   .sparkline-wrap {
     position: absolute;
     right: 0;
@@ -67,7 +140,7 @@
     transition: opacity 0.15s ease;
     pointer-events: none;
     background: rgba(10, 10, 10, 0.85);
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 4px;
     padding: 2px 4px;
   }
