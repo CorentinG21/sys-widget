@@ -33,10 +33,7 @@
   --glass-padding: 14px 16px;
 
   /* ── Spacing ── */
-  --row-gap:     6px;
-  --label-width: 54px;
-  --bar-height:  4px;
-  --bar-radius:  2px;
+  --row-gap: 6px;
 }
 
 html, body {
@@ -73,39 +70,7 @@ html, body {
 /* ── metric-row needs pointer-events:auto for :hover (sparkline).
       mousedown still bubbles to .widget for drag-region. ── */
 .widget .metric-row {
-  position: relative;
   pointer-events: auto;
-}
-
-/* ── Top process row (sub-row of CPU) ── */
-.top-process {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  /* Indent to align with the bar track, just like a metric-row's bar */
-  padding-left: calc(var(--label-width) + 8px);
-  margin-top: -3px;   /* tight visual link to the CPU row above */
-  font-size: 10px;
-}
-
-.top-arrow {
-  color: rgba(255, 255, 255, 0.25);
-  flex-shrink: 0;
-}
-
-.top-name {
-  color: rgba(255, 255, 255, 0.50);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.top-pct {
-  color: rgba(255, 255, 255, 0.40);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
 }
 
 /* ── Section divider ── */
@@ -113,55 +78,4 @@ html, body {
   height: 1px;
   background: rgba(255, 255, 255, 0.07);
   margin: 4px 0;
-}
-
-/* ── Disk rows get a bit more vertical breathing room ── */
-.disk-row {
-  padding: 2px 0;
-}
-
-/* ── Progress bar ── */
-.bar-track {
-  flex: 1;
-  height: var(--bar-height);
-  background: rgba(255, 255, 255, 0.10);
-  border-radius: var(--bar-radius);
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  border-radius: var(--bar-radius);
-  transition: width 0.4s ease, background-color 0.3s ease;
-  min-width: 2px;
-}
-
-/* ── Metric row layout ── */
-.metric-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.metric-label {
-  width: var(--label-width);
-  color: rgba(255, 255, 255, 0.55);
-  flex-shrink: 0;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.metric-values {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  font-size: 12px;
-}
-
-.metric-temp {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 11px;
 }
