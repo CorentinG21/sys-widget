@@ -145,7 +145,7 @@ pub fn run() {
                 loop {
                     ticker.tick().await;
 
-                    let (cpu_percent, ram, disks, network) = monitor.collect();
+                    let (cpu_percent, ram, disks, network, top_cpu) = monitor.collect();
                     let lhm_data = lhm
                         .lock()
                         .ok()
@@ -161,6 +161,7 @@ pub fn run() {
                         ram,
                         disks,
                         network,
+                        top_cpu,
                     };
 
                     if let Err(e) = app_metrics.emit("metrics-updated", &payload) {

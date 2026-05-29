@@ -5,7 +5,7 @@
   import { listen } from '@tauri-apps/api/event';
   import { load } from '@tauri-apps/plugin-store';
 
-  import { metrics, startListening, stopListening } from '$lib/stores/metrics.svelte';
+  import { metrics, cpuHistory, gpuHistory, startListening, stopListening } from '$lib/stores/metrics.svelte';
   import MetricRow    from '$lib/components/MetricRow.svelte';
   import DiskRow      from '$lib/components/DiskRow.svelte';
   import NetworkRow   from '$lib/components/NetworkRow.svelte';
@@ -110,12 +110,19 @@
     <UpdateBanner version={updateVersion} />
   {/if}
 
-  <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} />
+  <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} />
 
   {#if metrics.gpu}
-    <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} />
+    <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
   {:else}
     <MetricRow label="GPU" percent={0} na={true} />
+  {/if}
+
+  {#if metrics.top_cpu}
+    <div class="top-process">
+      🔥 <span class="top-name">{metrics.top_cpu.name}</span>
+      <span class="top-pct">{metrics.top_cpu.cpu_percent.toFixed(0)}%</span>
+    </div>
   {/if}
 
   <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />

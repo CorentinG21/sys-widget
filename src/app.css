@@ -65,10 +65,41 @@ html, body {
 }
 
 /* ── All widget children are non-interactive: clicks fall through to .widget
-      which carries data-tauri-drag-region and oncontextmenu.
-      Interactive descendants (e.g. future UpdateBanner) must set pointer-events: auto. ── */
+      which carries data-tauri-drag-region and oncontextmenu. ── */
 .widget * {
   pointer-events: none;
+}
+
+/* ── metric-row needs pointer-events:auto for :hover (sparkline).
+      mousedown still bubbles to .widget for drag-region. ── */
+.widget .metric-row {
+  position: relative;
+  pointer-events: auto;
+}
+
+/* ── Top process row (below CPU) ── */
+.top-process {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  padding-left: 2px;
+  margin-top: -2px;
+}
+
+.top-name {
+  color: rgba(255, 255, 255, 0.65);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-pct {
+  color: var(--color-warn);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
 }
 
 /* ── Section divider ── */

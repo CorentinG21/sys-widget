@@ -1,6 +1,6 @@
 [package]
 name = "sysmon-widget"
-version = "2.0.6"
+version = "2.1.0"
 description = "SysmonWidget — system monitoring overlay for Windows"
 authors = ["CorentinG21"]
 edition = "2021"

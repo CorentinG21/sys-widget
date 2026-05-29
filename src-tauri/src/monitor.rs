@@ -1,7 +1,7 @@
 use std::time::Instant;
-use sysinfo::{Disks, Networks, System};
+use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
 
-use crate::models::{DiskInfo, NetworkMetrics, RamMetrics};
+use crate::models::{DiskInfo, NetworkMetrics, RamMetrics, TopProcess};
 
 /// Handles repeated sysinfo polls for CPU, RAM, disks, and network.
 pub struct Monitor {
@@ -20,6 +20,8 @@ pub struct Monitor {
     /// Averaging smooths out single-sample spikes from hardware driver queries.
     cpu_history: [f32; 3],
     cpu_history_idx: usize,
+    /// Number of logical CPUs, used to normalise per-process CPU%.
+    cpu_count: f32,
 }
 
 impl Monitor {
@@ -40,6 +42,15 @@ impl Monitor {
         disks.refresh();
         let disk_cache = collect_disks(&disks);
 
+        let cpu_count = sys.cpus().len().max(1) as f32;
+
+        // First process refresh — gives CPU baselines for the next delta.
+        sys.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::new().with_cpu(),
+        );
+
         Self {
             sys,
             disks,
@@ -51,12 +62,13 @@ impl Monitor {
             last_disk_refresh: Instant::now(),
             cpu_history: [0.0; 3],
             cpu_history_idx: 0,
+            cpu_count,
         }
     }
 
     /// Refresh all sensors and return current snapshots.
     /// Disks are re-queried at most once every 10 seconds.
-    pub fn collect(&mut self) -> (f32, RamMetrics, Vec<DiskInfo>, NetworkMetrics) {
+    pub fn collect(&mut self) -> (f32, RamMetrics, Vec<DiskInfo>, NetworkMetrics, Option<TopProcess>) {
         // CPU — rolling average over 3 samples to smooth hardware-driver spikes
         self.sys.refresh_cpu_usage();
         let raw_cpu = self.sys.cpus().iter().map(|c| c.cpu_usage()).sum::<f32>()
@@ -100,7 +112,33 @@ impl Monitor {
         self.last_net_poll = Instant::now();
         let network = NetworkMetrics { upload, download };
 
-        (cpu_percent, ram, self.disk_cache.clone(), network)
+        // Top CPU process — refresh CPU-only data for all processes
+        self.sys.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::new().with_cpu(),
+        );
+        let top_cpu = self
+            .sys
+            .processes()
+            .values()
+            .filter(|p| p.cpu_usage() > 0.0)
+            .max_by(|a, b| {
+                a.cpu_usage()
+                    .partial_cmp(&b.cpu_usage())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|p| {
+                // sysinfo reports cpu_usage per-core (0–100 per core).
+                // Divide by core count to get system-relative percentage.
+                let pct = (p.cpu_usage() / self.cpu_count).clamp(0.0, 100.0);
+                TopProcess {
+                    name: p.name().to_string_lossy().to_string(),
+                    cpu_percent: pct,
+                }
+            });
+
+        (cpu_percent, ram, self.disk_cache.clone(), network, top_cpu)
     }
 }
 

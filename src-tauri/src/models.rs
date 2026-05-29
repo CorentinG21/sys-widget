@@ -62,6 +62,15 @@ pub struct LhmData {
     pub gpu: Option<GpuMetrics>,
 }
 
+/// The process consuming the most CPU at this instant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TopProcess {
+    /// Process name (e.g. "chrome.exe").
+    pub name: String,
+    /// CPU usage as % of total CPU (0–100), normalised by core count.
+    pub cpu_percent: f32,
+}
+
 /// Full payload emitted to the frontend on every tick.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsPayload {
@@ -71,4 +80,6 @@ pub struct MetricsPayload {
     pub ram: RamMetrics,
     pub disks: Vec<DiskInfo>,
     pub network: NetworkMetrics,
+    /// The process with the highest CPU usage right now. None on first tick.
+    pub top_cpu: Option<TopProcess>,
 }

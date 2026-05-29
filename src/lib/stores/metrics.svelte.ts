@@ -33,12 +33,19 @@ export interface NetworkMetrics {
   download: number;
 }
 
+export interface TopProcess {
+  name: string;
+  /** % of total CPU (0–100), normalised by core count. */
+  cpu_percent: number;
+}
+
 export interface MetricsPayload {
   cpu: CpuMetrics;
   gpu: GpuMetrics | null;
   ram: RamMetrics;
   disks: DiskInfo[];
   network: NetworkMetrics;
+  top_cpu: TopProcess | null;
 }
 
 // ─── Reactive state (Svelte 5 $state) ────────────────────────────────────────
@@ -49,7 +56,20 @@ export const metrics = $state<MetricsPayload>({
   ram:     { percent: 0, used: 0, total: 0 },
   disks:   [],
   network: { upload: 0, download: 0 },
+  top_cpu: null,
 });
+
+// ─── Sparkline history (last 15 ticks = 30 s at 2 s interval) ────────────────
+
+const MAX_HISTORY = 15;
+
+export const cpuHistory = $state<number[]>([]);
+export const gpuHistory = $state<number[]>([]);
+
+function pushHistory(arr: number[], value: number) {
+  arr.push(value);
+  if (arr.length > MAX_HISTORY) arr.shift();
+}
 
 // ─── Listener lifecycle ───────────────────────────────────────────────────────
 
@@ -67,6 +87,10 @@ export async function startListening(): Promise<void> {
     metrics.ram     = p.ram;
     metrics.disks   = p.disks;
     metrics.network = p.network;
+    metrics.top_cpu = p.top_cpu;
+
+    pushHistory(cpuHistory, p.cpu.percent);
+    pushHistory(gpuHistory, p.gpu ? p.gpu.percent : 0);
   });
 }
 
