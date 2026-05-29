@@ -92,6 +92,16 @@
       ? `🔥 ${metrics.top_cpu.name} · ${metrics.top_cpu.cpu_percent.toFixed(0)}%`
       : ''
   );
+
+  // ── Drag ─────────────────────────────────────────────────────────────────
+  // mousedown bubbles from ALL children (even pointer-events:auto metric-rows)
+  // up to .widget. We call startDragging() explicitly so any left-click anywhere
+  // in the widget initiates hold-and-drag, regardless of what element was clicked.
+  function onWidgetMouseDown(e: MouseEvent) {
+    if (e.button === 0) {         // left button only — ignore right-click (context menu)
+      getCurrentWindow().startDragging();
+    }
+  }
 </script>
 
 <ContextMenu
@@ -105,9 +115,9 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="widget"
-  data-tauri-drag-region
   role="application"
   aria-label="SysmonWidget"
+  onmousedown={onWidgetMouseDown}
   oncontextmenu={onContextMenu}
 >
 

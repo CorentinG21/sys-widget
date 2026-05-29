@@ -34,7 +34,7 @@
   const hasSubline = $derived(!na && (temp !== null || !!detail || !!subExtra));
 </script>
 
-<div class="metric-row" data-tauri-drag-region>
+<div class="metric-row">
   <!-- Main line: label | bar | % — sparkline anchors here so it centers on the bar -->
   <div class="main-line">
     <span class="lbl">{label}</span>
