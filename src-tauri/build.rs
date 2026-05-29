@@ -1,7 +1,10 @@
 fn main() {
     let mut windows = tauri_build::WindowsAttributes::new();
-    // Require administrator elevation — needed for LibreHardwareMonitor
-    // to access hardware sensors (CPU temp, GPU data).
+
+    // In release builds, require administrator elevation (needed for LHM sensors).
+    // In debug builds, skip UAC so `cargo run` / `tauri dev` works without elevation.
+    #[cfg(not(debug_assertions))]
+    {
     windows = windows.app_manifest(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
@@ -33,6 +36,7 @@ fn main() {
   </compatibility>
 </assembly>"#,
     );
+    } // end #[cfg(not(debug_assertions))]
 
     tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))
         .expect("failed to run tauri-build");
