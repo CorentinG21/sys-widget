@@ -87,6 +87,11 @@
   const vramDetail = $derived(
     metrics.gpu ? `${formatBytes(metrics.gpu.vram_used)} / ${formatBytes(metrics.gpu.vram_total)}` : ''
   );
+  const cpuSubExtra = $derived(
+    metrics.top_cpu
+      ? `🔥 ${metrics.top_cpu.name} · ${metrics.top_cpu.cpu_percent.toFixed(0)}%`
+      : ''
+  );
 </script>
 
 <ContextMenu
@@ -110,15 +115,7 @@
     <UpdateBanner version={updateVersion} />
   {/if}
 
-  <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} />
-
-  {#if metrics.top_cpu}
-    <div class="top-process">
-      <span class="top-arrow">🔥</span>
-      <span class="top-name">{metrics.top_cpu.name}</span>
-      <span class="top-pct">{metrics.top_cpu.cpu_percent.toFixed(0)}%</span>
-    </div>
-  {/if}
+  <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} subExtra={cpuSubExtra} />
 
   {#if metrics.gpu}
     <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
