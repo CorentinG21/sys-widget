@@ -10,6 +10,11 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::time::{self, Instant};
 
+// Tauri manages its own tokio runtime; we import tokio::time directly
+// because lib.rs uses interval_at (which needs tokio::time::Instant).
+// Only the "time" feature is needed — "full" in Cargo.toml is kept for
+// compatibility but reduced to ["time"] now.
+
 use lhm::LhmProcess;
 use models::MetricsPayload;
 use monitor::Monitor;
@@ -40,7 +45,13 @@ fn startup_is_registered() -> bool {
 fn startup_toggle() -> bool {
     // Use the path of the currently-running exe — always correct regardless
     // of install location (currentUser NSIS, dev build, etc.).
-    let exe = std::env::current_exe().unwrap_or_default();
+    let exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[startup] current_exe() failed: {e}");
+            return false;
+        }
+    };
     startup::toggle(exe.to_string_lossy().as_ref())
 }
 
@@ -173,7 +184,7 @@ pub fn run() {
             // ── Update check: 30 s after start, then every hour ─────────────
             let app_updater = app_handle.clone();
             tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(Duration::from_secs(30)).await;
+                time::sleep(Duration::from_secs(30)).await;
                 check_updates(app_updater.clone()).await;
                 let mut interval = time::interval(Duration::from_secs(3600));
                 interval.tick().await; // immediate first tick — skip it

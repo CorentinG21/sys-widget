@@ -8,7 +8,6 @@ export interface CpuMetrics {
 }
 
 export interface GpuMetrics {
-  name: string;
   percent: number;
   temp: number | null;
   vram_used: number;

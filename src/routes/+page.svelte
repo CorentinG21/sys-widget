@@ -6,6 +6,9 @@
   import { load } from '@tauri-apps/plugin-store';
 
   import { metrics, cpuHistory, gpuHistory, startListening, stopListening } from '$lib/stores/metrics.svelte';
+
+  // Cache the window handle — getCurrentWindow() is an IPC call, no need to repeat it.
+  const appWindow = getCurrentWindow();
   import MetricRow    from '$lib/components/MetricRow.svelte';
   import DiskRow      from '$lib/components/DiskRow.svelte';
   import NetworkRow   from '$lib/components/NetworkRow.svelte';
@@ -45,8 +48,7 @@
 
   async function savePosition(): Promise<void> {
     try {
-      const win = getCurrentWindow();
-      const pos = await win.outerPosition();
+      const pos = await appWindow.outerPosition();
       const store = await load(STORE_PATH);
       await store.set(POS_KEY, { x: pos.x, y: pos.y });
       await store.save();
@@ -60,7 +62,7 @@
       const store = await load(STORE_PATH);
       const pos = await store.get<{ x: number; y: number }>(POS_KEY);
       if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
-        await getCurrentWindow().setPosition({ type: 'Physical', x: pos.x, y: pos.y });
+        await appWindow.setPosition({ type: 'Physical', x: pos.x, y: pos.y });
       }
     } catch (e) {
       console.warn('[store] restorePosition failed:', e);
@@ -70,9 +72,9 @@
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   onMount(async () => {
-    await getCurrentWindow().setAlwaysOnBottom(true);
+    await appWindow.setAlwaysOnBottom(true);
     await restorePosition();
-    await getCurrentWindow().onMoved(savePosition);
+    await appWindow.onMoved(savePosition);
     await startListening();
 
     // Listen for update notifications from the Rust backend.
@@ -99,7 +101,7 @@
   // in the widget initiates hold-and-drag, regardless of what element was clicked.
   function onWidgetMouseDown(e: MouseEvent) {
     if (e.button === 0) {         // left button only — ignore right-click (context menu)
-      getCurrentWindow().startDragging();
+      appWindow.startDragging();
     }
   }
 </script>

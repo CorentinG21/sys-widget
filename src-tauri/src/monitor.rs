@@ -184,14 +184,14 @@ mod tests {
     #[test]
     fn collect_returns_valid_cpu_percent() {
         let mut m = Monitor::new();
-        let (cpu, _, _, _) = m.collect();
+        let (cpu, _, _, _, _) = m.collect();
         assert!((0.0..=100.0).contains(&cpu), "cpu={cpu}");
     }
 
     #[test]
     fn collect_returns_valid_ram() {
         let mut m = Monitor::new();
-        let (_, ram, _, _) = m.collect();
+        let (_, ram, _, _, _) = m.collect();
         assert!(ram.total > 0, "total RAM should be > 0");
         assert!((0.0..=100.0).contains(&ram.percent), "ram%={}", ram.percent);
         assert!(ram.used <= ram.total);
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn collect_returns_disks() {
         let mut m = Monitor::new();
-        let (_, _, disks, _) = m.collect();
+        let (_, _, disks, _, _) = m.collect();
         // At least the system drive should appear on any Windows machine.
         assert!(!disks.is_empty(), "expected at least one disk");
         for d in &disks {
@@ -215,7 +215,7 @@ mod tests {
         // First call initialises the delta counters.
         m.collect();
         // Second call should return a proper delta.
-        let (_, _, _, net) = m.collect();
+        let (_, _, _, net, _) = m.collect();
         assert!(net.upload >= 0.0);
         assert!(net.download >= 0.0);
     }

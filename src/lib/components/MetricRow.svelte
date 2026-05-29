@@ -70,10 +70,6 @@
 </div>
 
 <style>
-  .metric-row {
-    /* no position:relative needed — sparkline anchors to .main-line now */
-  }
-
   /* ── Main line: label | bar | % ── */
   .main-line {
     position: relative; /* sparkline-wrap anchors here */

@@ -56,7 +56,8 @@ pub struct NetworkMetrics {
 }
 
 /// Data received from the LHM PowerShell subprocess.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Only used internally — never emitted directly to the frontend.
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct LhmData {
     pub cpu_temp: Option<f32>,
     pub gpu: Option<GpuMetrics>,

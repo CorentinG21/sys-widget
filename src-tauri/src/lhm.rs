@@ -65,7 +65,7 @@ impl From<RawLhm> for LhmData {
 /// Manages a persistent PowerShell subprocess running `read_temp.ps1`.
 pub struct LhmProcess {
     child: Child,
-    pub data: Arc<Mutex<LhmData>>,
+    data: Arc<Mutex<LhmData>>,
 }
 
 impl LhmProcess {
@@ -101,11 +101,11 @@ impl LhmProcess {
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 let Ok(line) = line else { break };
-                let line = line.trim().to_owned();
+                let line = line.trim();
                 if line.is_empty() {
                     continue;
                 }
-                match serde_json::from_str::<RawLhm>(&line) {
+                match serde_json::from_str::<RawLhm>(line) {
                     Ok(raw) => {
                         if let Ok(mut guard) = data_clone.lock() {
                             *guard = raw.into();

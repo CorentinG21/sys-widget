@@ -24,7 +24,7 @@ pub fn is_registered() -> bool {
 
 /// Creates an ONLOGON task that runs the given exe with highest privileges.
 /// Returns true on success.
-pub fn register(exe_path: &str) -> bool {
+pub(crate) fn register(exe_path: &str) -> bool {
     let ps = format!(
         r#"$action   = New-ScheduledTaskAction  -Execute '{exe}';
 $trigger  = New-ScheduledTaskTrigger  -AtLogOn;
@@ -52,7 +52,7 @@ Register-ScheduledTask -TaskName '{name}' -Action $action -Trigger $trigger -Set
 }
 
 /// Removes the scheduled task. Returns true on success.
-pub fn unregister() -> bool {
+pub(crate) fn unregister() -> bool {
     let mut cmd = Command::new("powershell");
     cmd.args([
         "-NoProfile",
@@ -75,13 +75,14 @@ pub fn unregister() -> bool {
 }
 
 /// Toggle: register if not registered, unregister otherwise.
-/// Returns the new state (true = registered).
+/// Returns the actual new state (true = registered) — reflects whether the
+/// schtask command succeeded, not just the intended state.
 pub fn toggle(exe_path: &str) -> bool {
     if is_registered() {
-        unregister();
-        false
+        // unregister() returns true on success → task removed → state = false
+        !unregister()
     } else {
-        register(exe_path);
-        true
+        // register() returns true on success → task added → state = true
+        register(exe_path)
     }
 }

@@ -8,14 +8,14 @@
 
   const { values, width = 64, height = 18, color = '#06d6a0' }: Props = $props();
 
-  const points = $derived((() => {
+  const points = $derived.by(() => {
     if (values.length < 2) return '';
     const max = Math.max(...values, 1);
     const xStep = width / (values.length - 1);
     return values
       .map((v, i) => `${(i * xStep).toFixed(1)},${(height - (v / max) * height).toFixed(1)}`)
       .join(' ');
-  })());
+  });
 </script>
 
 {#if points}
