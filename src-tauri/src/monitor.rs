@@ -1,16 +1,16 @@
-use std::collections::HashMap;
 use std::time::Instant;
 use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
 
-use crate::models::{DiskInfo, NetworkInterface, RamMetrics, TopProcess};
+use crate::models::{DiskInfo, NetworkMetrics, RamMetrics, TopProcess};
 
 /// Handles repeated sysinfo polls for CPU, RAM, disks, and network.
 pub struct Monitor {
     sys: System,
     disks: Disks,
     networks: Networks,
-    /// Per-interface totals from the last poll: name → (sent_bytes, recv_bytes).
-    prev_net: HashMap<String, (u64, u64)>,
+    /// Absolute bytes sent/received at the last poll, used to compute per-second deltas.
+    prev_sent: u64,
+    prev_recv: u64,
     /// Wall-clock time of the last network poll, for accurate delta calculation.
     last_net_poll: Instant,
     /// Cached disk snapshot (refreshed at most every ~10 s).
@@ -36,13 +36,7 @@ impl Monitor {
 
         let mut networks = Networks::new_with_refreshed_list();
         networks.refresh();
-        // Seed per-interface totals so the first collect() produces a valid delta.
-        let prev_net: HashMap<String, (u64, u64)> = networks
-            .iter()
-            .map(|(name, data)| {
-                (name.clone(), (data.total_transmitted(), data.total_received()))
-            })
-            .collect();
+        let (sent, recv) = total_net_bytes(&networks);
 
         let mut disks = Disks::new_with_refreshed_list();
         disks.refresh();
@@ -61,7 +55,8 @@ impl Monitor {
             sys,
             disks,
             networks,
-            prev_net,
+            prev_sent: sent,
+            prev_recv: recv,
             last_net_poll: Instant::now(),
             disk_cache,
             last_disk_refresh: Instant::now(),
@@ -73,7 +68,7 @@ impl Monitor {
 
     /// Refresh all sensors and return current snapshots.
     /// Disks are re-queried at most once every 10 seconds.
-    pub fn collect(&mut self) -> (f32, RamMetrics, Vec<DiskInfo>, Vec<NetworkInterface>, Option<TopProcess>) {
+    pub fn collect(&mut self) -> (f32, RamMetrics, Vec<DiskInfo>, NetworkMetrics, Option<TopProcess>) {
         // CPU — rolling average over 3 samples to smooth hardware-driver spikes
         self.sys.refresh_cpu_usage();
         let raw_cpu = self.sys.cpus().iter().map(|c| c.cpu_usage()).sum::<f32>()
@@ -106,11 +101,16 @@ impl Monitor {
             self.last_disk_refresh = Instant::now();
         }
 
-        // Network delta — per interface
+        // Network delta
         self.networks.refresh();
+        let (sent, recv) = total_net_bytes(&self.networks);
         let elapsed = self.last_net_poll.elapsed().as_secs_f64().max(0.001);
-        let network = collect_network(&self.networks, &mut self.prev_net, elapsed);
+        let upload = (sent.saturating_sub(self.prev_sent) as f64) / elapsed;
+        let download = (recv.saturating_sub(self.prev_recv) as f64) / elapsed;
+        self.prev_sent = sent;
+        self.prev_recv = recv;
         self.last_net_poll = Instant::now();
+        let network = NetworkMetrics { upload, download };
 
         // Top CPU process — refresh CPU-only data for all processes
         self.sys.refresh_processes_specifics(
@@ -142,78 +142,12 @@ impl Monitor {
     }
 }
 
-/// Returns true for real/useful interfaces — excludes loopback and common
-/// Windows virtual adapters (Hyper-V, WSL, VirtualBox, VMware, Bluetooth).
-fn is_real_interface(name: &str) -> bool {
-    let lo = name.to_lowercase();
-    // Loopback
-    if lo.contains("loopback") || name == "lo" { return false; }
-    // Hyper-V virtual switches (vEthernet (Default Switch), vEthernet (WSL), …)
-    if lo.starts_with("vethernet") { return false; }
-    // VirtualBox host-only adapters
-    if lo.contains("virtualbox") { return false; }
-    // VMware virtual adapters
-    if lo.contains("vmware") || lo.contains("vmnet") { return false; }
-    // Generic virtual / pseudo
-    if lo.contains("virtual") || lo.contains("pseudo") { return false; }
-    // Bluetooth (rarely useful for bandwidth monitoring)
-    if lo.contains("bluetooth") { return false; }
-    true
-}
-
-/// Compute per-interface upload/download rates (bytes/s).
-///
-/// Filters:
-///   - Virtual/loopback interfaces excluded (see `is_real_interface`).
-///   - Interfaces with zero cumulative traffic excluded (never used).
-///
-/// Sorted by current activity descending. Capped at 3 interfaces.
-fn collect_network(
-    networks: &Networks,
-    prev: &mut HashMap<String, (u64, u64)>,
-    elapsed: f64,
-) -> Vec<NetworkInterface> {
-    let mut result: Vec<NetworkInterface> = networks
+fn total_net_bytes(networks: &Networks) -> (u64, u64) {
+    networks
         .iter()
-        .filter(|(name, data)| {
-            let unused = data.total_transmitted() == 0 && data.total_received() == 0;
-            is_real_interface(name) && !unused
+        .fold((0, 0), |(s, r), (_, data)| {
+            (s + data.total_transmitted(), r + data.total_received())
         })
-        .map(|(name, data)| {
-            let total_sent = data.total_transmitted();
-            let total_recv = data.total_received();
-
-            let (upload, download) = match prev.get(name) {
-                Some(&(ps, pr)) => (
-                    total_sent.saturating_sub(ps) as f64 / elapsed,
-                    total_recv.saturating_sub(pr) as f64 / elapsed,
-                ),
-                None => (0.0, 0.0),
-            };
-
-            prev.insert(name.clone(), (total_sent, total_recv));
-
-            NetworkInterface {
-                name: name.clone(),
-                upload,
-                download,
-            }
-        })
-        .collect();
-
-    // Remove stale entries for interfaces that disappeared (e.g. VPN disconnect)
-    prev.retain(|k, _| networks.contains_key(k));
-
-    // Sort: most active first
-    result.sort_by(|a, b| {
-        (b.upload + b.download)
-            .partial_cmp(&(a.upload + a.download))
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    // Cap at 3 to keep the widget compact
-    result.truncate(3);
-    result
 }
 
 fn collect_disks(disks: &Disks) -> Vec<DiskInfo> {

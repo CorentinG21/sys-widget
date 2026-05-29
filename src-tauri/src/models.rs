@@ -46,11 +46,9 @@ pub struct DiskInfo {
     pub total: u64,
 }
 
-/// Per-interface network metrics (bytes per second since last poll).
+/// Network delta metrics (bytes per second since last poll).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NetworkInterface {
-    /// OS interface name, e.g. "Wi-Fi", "Ethernet", "Ethernet 2".
-    pub name: String,
+pub struct NetworkMetrics {
     /// Upload bytes/s.
     pub upload: f64,
     /// Download bytes/s.
@@ -82,9 +80,7 @@ pub struct MetricsPayload {
     pub gpu: Option<GpuMetrics>,
     pub ram: RamMetrics,
     pub disks: Vec<DiskInfo>,
-    /// Active network interfaces, sorted by current activity (most active first).
-    /// Loopback and zero-traffic interfaces are excluded.
-    pub network: Vec<NetworkInterface>,
+    pub network: NetworkMetrics,
     /// The process with the highest CPU usage right now. None on first tick.
     pub top_cpu: Option<TopProcess>,
 }
