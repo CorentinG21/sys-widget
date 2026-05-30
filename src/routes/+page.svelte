@@ -72,8 +72,9 @@
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   onMount(async () => {
+    await restorePosition();          // position first (window still hidden)
     await appWindow.setAlwaysOnBottom(true);
-    await restorePosition();
+    await appWindow.show();           // reveal only after position is correct
     await appWindow.onMoved(savePosition);
     await startListening();
 
