@@ -52,17 +52,19 @@ $tag = "v$next"
 Write-Host "  $current  -->  $next  ($tag)" -ForegroundColor Cyan
 Write-Host ""
 
+# UTF-8 without BOM — PowerShell 5.1 -Encoding utf8 adds a BOM which breaks JSON parsers
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+
 # ── Bump tauri.conf.json ──────────────────────────────────────────────────────
 $conf = $conf -replace '"version":\s*"\d+\.\d+\.\d+"', """version"": ""$next"""
-Set-Content $confPath $conf -NoNewline -Encoding utf8
+[System.IO.File]::WriteAllText((Resolve-Path $confPath).Path, $conf, $utf8NoBom)
 Write-Host "  tauri.conf.json updated"
 
 # ── Bump Cargo.toml ([package] section only) ──────────────────────────────────
 $cargoPath = "src-tauri\Cargo.toml"
 $cargo     = Get-Content $cargoPath -Raw
-# Only replace the first occurrence (package version, not dependency versions)
-$cargo = [regex]::Replace($cargo, '(?m)^version = "\d+\.\d+\.\d+"', "version = ""$next""", [System.Text.RegularExpressions.RegexOptions]::Multiline)
-Set-Content $cargoPath $cargo -NoNewline -Encoding utf8
+$cargo = [regex]::Replace($cargo, '(?m)^version = "\d+\.\d+\.\d+"', "version = ""$next""")
+[System.IO.File]::WriteAllText((Resolve-Path $cargoPath).Path, $cargo, $utf8NoBom)
 Write-Host "  Cargo.toml updated"
 
 # ── Git: commit + push + tag ──────────────────────────────────────────────────
