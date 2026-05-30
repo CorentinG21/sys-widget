@@ -1,50 +1,80 @@
-# SysmonWidget release script
-# Usage: .\release.ps1 2.3.3 "description"
+# SysmonWidget release script — semantic versioning
 #
-# 1. Bumpe tauri.conf.json + Cargo.toml
-# 2. Commit + push main
-# 3. Tag vX.X.X + push => GitHub Actions builds the release
+# Usage:
+#   .\release.ps1 patch "fix: description"   # x.y.Z+1
+#   .\release.ps1 minor "feat: description"  # x.Y+1.0
+#   .\release.ps1 major "feat: description"  # X+1.0.0
+#   .\release.ps1 2.5.0 "description"        # exact version (escape hatch)
+#
+# What it does:
+#   1. Reads current version from tauri.conf.json
+#   2. Calculates next version (or uses the one you gave)
+#   3. Bumps tauri.conf.json + Cargo.toml
+#   4. git commit + push + tag => triggers GitHub Actions
 
 param(
-    [Parameter(Mandatory=$true)]  [string]$Version,
-    [Parameter(Mandatory=$false)] [string]$Message = "chore: release v$Version"
+    [Parameter(Mandatory=$true)]  [string]$Bump,
+    [Parameter(Mandatory=$false)] [string]$Message
 )
 
 $ErrorActionPreference = "Stop"
 
-if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    Write-Error "Version must be X.Y.Z (e.g. 2.3.3)"
+# ── Read current version ──────────────────────────────────────────────────────
+$confPath  = "src-tauri\tauri.conf.json"
+$conf      = Get-Content $confPath -Raw
+if ($conf -notmatch '"version":\s*"(\d+)\.(\d+)\.(\d+)"') {
+    Write-Error "Could not read version from $confPath"
     exit 1
 }
+$curMajor = [int]$Matches[1]
+$curMinor = [int]$Matches[2]
+$curPatch = [int]$Matches[3]
+$current  = "$curMajor.$curMinor.$curPatch"
 
-$TagName = "v$Version"
-Write-Host "Releasing $TagName ..." -ForegroundColor Cyan
+# ── Calculate next version ────────────────────────────────────────────────────
+switch ($Bump.ToLower()) {
+    "major" { $next = "$($curMajor + 1).0.0" }
+    "minor" { $next = "$curMajor.$($curMinor + 1).0" }
+    "patch" { $next = "$curMajor.$curMinor.$($curPatch + 1)" }
+    default {
+        # Exact version passed (e.g. "2.5.0")
+        if ($Bump -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "First argument must be: patch | minor | major | X.Y.Z"
+            exit 1
+        }
+        $next = $Bump
+    }
+}
 
-# 1. Bump tauri.conf.json
-$confPath = "src-tauri\tauri.conf.json"
-$conf = Get-Content $confPath -Raw
-$conf = $conf -replace '"version": "\d+\.\d+\.\d+"', """version"": ""$Version"""
+if (-not $Message) { $Message = "chore: release v$next" }
+$tag = "v$next"
+
+Write-Host "  $current  -->  $next  ($tag)" -ForegroundColor Cyan
+Write-Host ""
+
+# ── Bump tauri.conf.json ──────────────────────────────────────────────────────
+$conf = $conf -replace '"version":\s*"\d+\.\d+\.\d+"', """version"": ""$next"""
 Set-Content $confPath $conf -NoNewline -Encoding utf8
-Write-Host "  tauri.conf.json -> $Version"
+Write-Host "  tauri.conf.json updated"
 
-# 2. Bump Cargo.toml ([package] version only)
+# ── Bump Cargo.toml ([package] section only) ──────────────────────────────────
 $cargoPath = "src-tauri\Cargo.toml"
-$cargo = Get-Content $cargoPath -Raw
-$cargo = $cargo -replace '(?m)^version = "\d+\.\d+\.\d+"', "version = ""$Version"""
+$cargo     = Get-Content $cargoPath -Raw
+# Only replace the first occurrence (package version, not dependency versions)
+$cargo = [regex]::Replace($cargo, '(?m)^version = "\d+\.\d+\.\d+"', "version = ""$next""", [System.Text.RegularExpressions.RegexOptions]::Multiline)
 Set-Content $cargoPath $cargo -NoNewline -Encoding utf8
-Write-Host "  Cargo.toml -> $Version"
+Write-Host "  Cargo.toml updated"
 
-# 3. Commit + push
+# ── Git: commit + push + tag ──────────────────────────────────────────────────
 git add src-tauri/tauri.conf.json src-tauri/Cargo.toml
 git commit -m $Message
 git push origin main
 Write-Host "  Pushed to main"
 
-# 4. Tag + push
-git tag $TagName
-git push origin $TagName
-Write-Host "  Tagged $TagName"
+git tag $tag
+git push origin $tag
+Write-Host "  Tagged $tag"
 
 Write-Host ""
-Write-Host "Done! Check GitHub Actions for the build:" -ForegroundColor Green
+Write-Host "Done! GitHub Actions is building the release." -ForegroundColor Green
 Write-Host "  https://github.com/CorentinG21/sys-widget/actions"
