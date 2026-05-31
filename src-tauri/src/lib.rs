@@ -101,6 +101,43 @@ async fn install_update(app: AppHandle) {
     }
 }
 
+/// Read the current Windows accent color from the registry.
+/// Returns a CSS hex string like "#0078d4". Falls back to "#06d6a0" on error.
+#[tauri::command]
+fn get_accent_color() -> String {
+    #[cfg(target_os = "windows")]
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\DWM' \
+         -Name AccentColor -ErrorAction SilentlyContinue).AccentColor",
+    ]);
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    if let Ok(output) = cmd.output() {
+        if output.status.success() {
+            let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Ok(val) = s.parse::<i64>() {
+                let val = val as u32;
+                let r = (val & 0xFF) as u8;
+                let g = ((val >> 8) & 0xFF) as u8;
+                let b = ((val >> 16) & 0xFF) as u8;
+                return format!("#{:02x}{:02x}{:02x}", r, g, b);
+            }
+        }
+    }
+    "#06d6a0".to_string()
+}
+
 // ─── App setup ───────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -116,6 +153,7 @@ pub fn run() {
             startup_toggle,
             check_update,
             install_update,
+            get_accent_color,
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

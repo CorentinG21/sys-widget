@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "SysmonWidget",
         "width": 320,
         "height": 600,
@@ -21,6 +22,20 @@
         "shadow": false,
         "resizable": false,
         "visible": false
+      },
+      {
+        "label": "settings",
+        "url": "/settings",
+        "title": "SysmonWidget Settings",
+        "width": 260,
+        "height": 400,
+        "decorations": false,
+        "transparent": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "resizable": false,
+        "visible": false,
+        "alwaysOnTop": true
       }
     ],
     "security": {
