@@ -116,7 +116,9 @@
       <label
         class="swatch swatch-custom"
         class:active={accentColor === 'custom'}
-        style="background: {accentColor === 'custom' ? customColor : 'conic-gradient(from 0deg, #ff6b6b, #ffd166, #06d6a0, #74d7f7, #7c5cfc, #ff6b6b)'};"
+        style="background: {accentColor === 'custom'
+          ? customColor
+          : 'linear-gradient(135deg, #667eea 0%, #c084fc 50%, #f472b6 100%)'};"
         title="Couleur personnalisée"
       >
         <input
@@ -125,9 +127,6 @@
           value={customColor}
           oninput={onCustomColorInput}
         />
-        {#if accentColor !== 'custom'}
-          <span class="picker-icon">🎨</span>
-        {/if}
       </label>
     </div>
   </section>
@@ -268,13 +267,6 @@
     padding: 0;
   }
 
-  .picker-icon {
-    font-size: 10px;
-    pointer-events: none;
-    position: relative;
-    z-index: 1;
-    filter: drop-shadow(0 0 1px rgba(0,0,0,0.5));
-  }
 
   /* ── Transparency slider ── */
   .transp-header {
