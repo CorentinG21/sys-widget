@@ -1,7 +1,7 @@
 <script lang="ts">
   import '../../app.css';
   import { onMount } from 'svelte';
-  import { getCurrentWindow, PhysicalPosition, currentMonitor } from '@tauri-apps/api/window';
+  import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
   import { load } from '@tauri-apps/plugin-store';
   import {
@@ -47,7 +47,7 @@
     const mainWin = await WebviewWindow.getByLabel('main');
     if (!mainWin) return;
 
-    const monitor = await currentMonitor();
+    const monitor = await mainWin.currentMonitor();
     const widgetSize = await mainWin.outerSize();
     if (!monitor || !widgetSize) return;
 
