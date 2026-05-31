@@ -56,7 +56,6 @@
     const settingsWin = await WebviewWindow.getByLabel('settings');
     if (!settingsWin) return;
 
-    const settingsWidth = 260;
     const gap = 8;
     const targetX = pos.x + size.width + gap;
 
