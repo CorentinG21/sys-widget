@@ -94,10 +94,9 @@ html, body {
   --color-dl: #a0a0a0;
 }
 
-/* Windows: --windows-accent injected via JS (get_accent_color) */
-[data-theme="windows"] {
-  --color-ok: var(--windows-accent, #06d6a0);
-  --color-dl: var(--windows-accent, #74d7f7);
+[data-theme="neutral"] {
+  --color-ok: #909090;
+  --color-dl: #b0b0b0;
 }
 
 /* ── Transparency levels ── */

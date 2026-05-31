@@ -1,7 +1,7 @@
 import { load } from '@tauri-apps/plugin-store';
 import { invoke } from '@tauri-apps/api/core';
 
-export type AccentColor = 'cyan' | 'matrix' | 'white' | 'windows';
+export type AccentColor = 'cyan' | 'matrix' | 'white' | 'neutral';
 export type Transparency = 'opaque' | 'glass' | 'ultra';
 
 export interface Settings {
@@ -22,7 +22,9 @@ export const settings = $state<Settings>({
 
 export async function loadSettings(): Promise<void> {
   const store = await load(STORE_PATH);
-  settings.accentColor = (await store.get<AccentColor>('accentColor')) ?? 'cyan';
+  const saved = await store.get<string>('accentColor');
+  // Migrate legacy 'windows' value to 'neutral'
+  settings.accentColor = (saved === 'windows' ? 'neutral' : saved as AccentColor) ?? 'cyan';
   settings.transparency = (await store.get<Transparency>('transparency')) ?? 'glass';
   settings.showDetails  = (await store.get<boolean>('showDetails'))  ?? true;
   settings.locked       = (await store.get<boolean>('locked'))       ?? false;

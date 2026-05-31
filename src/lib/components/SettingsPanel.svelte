@@ -22,16 +22,8 @@
     showDetails  = settings.showDetails;
   });
 
-  // Apply theme directly to avoid state-reading issues
-  async function applyAccent(val: AccentColor) {
-    const html = document.documentElement;
-    if (val === 'windows') {
-      try {
-        const hex = await invoke<string>('get_accent_color');
-        html.style.setProperty('--windows-accent', hex);
-      } catch { /* keep existing fallback */ }
-    }
-    html.dataset.theme = val;
+  function applyAccent(val: AccentColor) {
+    document.documentElement.dataset.theme = val;
   }
 
   function applyTransp(val: Transparency) {
@@ -50,7 +42,7 @@
   async function setAccent(val: AccentColor) {
     accentColor = val;
     settings.accentColor = val;
-    await applyAccent(val);
+    applyAccent(val);
     await saveSettings();
   }
 
@@ -106,7 +98,7 @@
     { id: 'cyan',    color: '#06d6a0', label: 'Cyan Néon' },
     { id: 'matrix',  color: '#00ff41', label: 'Vert Matrix' },
     { id: 'white',   color: '#e0e0e0', label: 'Blanc Épuré' },
-    { id: 'windows', color: '#0078d4', label: 'Thème Windows' },
+    { id: 'neutral', color: '#909090', label: 'Gris Neutre' },
   ];
 
   const TRANSPARENCIES: { id: Transparency; label: string }[] = [
