@@ -6,6 +6,7 @@
   import { load } from '@tauri-apps/plugin-store';
 
   import { metrics, cpuHistory, gpuHistory, startListening, stopListening } from '$lib/stores/metrics.svelte';
+  import { settings, loadSettings, applyToDocument, type Settings } from '$lib/stores/settings.svelte';
 
   // Cache the window handle — getCurrentWindow() is an IPC call, no need to repeat it.
   const appWindow = getCurrentWindow();
@@ -79,6 +80,16 @@
     // Save on any close (OS kill, Task Manager, etc.) as a safety net
     await appWindow.onCloseRequested(async () => { await savePosition(); });
     await startListening();
+    await loadSettings();
+    await applyToDocument();
+
+    await listen<Settings>('settings-changed', async (event) => {
+      settings.accentColor = event.payload.accentColor;
+      settings.transparency = event.payload.transparency;
+      settings.showDetails  = event.payload.showDetails;
+      settings.locked       = event.payload.locked;
+      await applyToDocument();
+    });
 
     // Listen for update notifications from the Rust backend.
     await listen<{ version: string }>('update-available', (event) => {
@@ -106,9 +117,8 @@
   // up to .widget. We call startDragging() explicitly so any left-click anywhere
   // in the widget initiates hold-and-drag, regardless of what element was clicked.
   function onWidgetMouseDown(e: MouseEvent) {
-    if (e.button !== 0) return;   // left button only
-    // Don't start drag when clicking an interactive element (button, link…)
-    // e.g. the UpdateBanner button must receive its onclick normally.
+    if (e.button !== 0) return;
+    if (settings.locked) return;
     const target = e.target as HTMLElement;
     if (target.closest('button, input, a, [role="button"]')) return;
     appWindow.startDragging();
