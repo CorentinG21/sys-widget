@@ -4,43 +4,57 @@
   import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
   import { load } from '@tauri-apps/plugin-store';
-  import {
-    settings,
-    loadSettings,
-    saveAndEmit,
-    applyToDocument,
-    type AccentColor,
-    type Transparency,
-  } from '$lib/stores/settings.svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import type { AccentColor, Transparency } from '$lib/stores/settings.svelte';
 
   const win = getCurrentWindow();
 
+  // Local reactive state — drives the UI directly
+  let accentColor  = $state<AccentColor>('cyan');
+  let transparency = $state<Transparency>('glass');
+  let showDetails  = $state(true);
+  let locked       = $state(false);
+
   onMount(async () => {
-    await loadSettings();
-    await applyToDocument();
+    const store = await load('config.json');
+    accentColor  = (await store.get<AccentColor>('accentColor'))  ?? 'cyan';
+    transparency = (await store.get<Transparency>('transparency')) ?? 'glass';
+    showDetails  = (await store.get<boolean>('showDetails'))       ?? true;
+    locked       = (await store.get<boolean>('locked'))            ?? false;
   });
 
+  async function broadcast() {
+    await invoke('broadcast_settings', { accentColor, transparency, showDetails, locked });
+    try {
+      const store = await load('config.json');
+      await store.set('accentColor', accentColor);
+      await store.set('transparency', transparency);
+      await store.set('showDetails', showDetails);
+      await store.set('locked', locked);
+      await store.save();
+    } catch (e) {
+      console.error('[settings] save failed:', e);
+    }
+  }
+
   async function setAccent(val: AccentColor) {
-    settings.accentColor = val;
-    await applyToDocument();
-    await saveAndEmit();
+    accentColor = val;
+    await broadcast();
   }
 
   async function setTransparency(val: Transparency) {
-    settings.transparency = val;
-    await applyToDocument();
-    await saveAndEmit();
+    transparency = val;
+    await broadcast();
   }
 
   async function toggleDetails() {
-    settings.showDetails = !settings.showDetails;
-    await applyToDocument();
-    await saveAndEmit();
+    showDetails = !showDetails;
+    await broadcast();
   }
 
   async function toggleLocked() {
-    settings.locked = !settings.locked;
-    await saveAndEmit();
+    locked = !locked;
+    await broadcast();
   }
 
   async function anchorTo(corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') {
@@ -58,10 +72,10 @@
     const margin = 12;
 
     let x: number, y: number;
-    if (corner === 'top-left')          { x = mx + margin;                        y = my + margin; }
+    if (corner === 'top-left')          { x = mx + margin;                         y = my + margin; }
     else if (corner === 'top-right')    { x = mx + mw - widgetSize.width - margin; y = my + margin; }
-    else if (corner === 'bottom-left')  { x = mx + margin;                        y = my + mh - widgetSize.height - margin; }
-    else                                { x = mx + mw - widgetSize.width - margin; y = my + mh - widgetSize.height - margin; }
+    else if (corner === 'bottom-left')  { x = mx + margin;                         y = my + mh - widgetSize.height - margin; }
+    else                                { x = mx + mw - widgetSize.width - margin;  y = my + mh - widgetSize.height - margin; }
 
     await mainWin.setPosition(new PhysicalPosition(x, y));
 
@@ -105,7 +119,7 @@
       {#each ACCENTS as accent}
         <button
           class="swatch"
-          class:active={settings.accentColor === accent.id}
+          class:active={accentColor === accent.id}
           style="background: {accent.color};"
           title={accent.label}
           onclick={() => setAccent(accent.id)}
@@ -123,7 +137,7 @@
       {#each TRANSPARENCIES as t}
         <button
           class="radio-btn"
-          class:active={settings.transparency === t.id}
+          class:active={transparency === t.id}
           onclick={() => setTransparency(t.id)}
         >
           {t.label}
@@ -137,10 +151,10 @@
   <!-- ── Toggles ── -->
   <section>
     <button class="toggle-row" onclick={toggleDetails}>
-      <span>{settings.showDetails ? '✓' : '○'} Afficher les détails</span>
+      <span>{showDetails ? '✓' : '○'} Afficher les détails</span>
     </button>
     <button class="toggle-row" onclick={toggleLocked}>
-      <span>{settings.locked ? '✓' : '○'} Verrouiller la position</span>
+      <span>{locked ? '✓' : '○'} Verrouiller la position</span>
     </button>
   </section>
 
