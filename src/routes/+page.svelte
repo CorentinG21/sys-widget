@@ -34,45 +34,32 @@
   let panelOnLeft = $state(false);
 
   async function openSettings() {
-    try {
-      const pos     = await appWindow.outerPosition();
-      const monitor = await appWindow.currentMonitor();
-      const scale   = monitor?.scaleFactor ?? 1;
-      const mRight  = (monitor?.position.x ?? 0) + (monitor?.size.width ?? 1920);
-      const expandedW = Math.round((WIDGET_W + GAP + PANEL_W) * scale);
-      panelOnLeft = (pos.x + expandedW) > mRight;
+    const pos = await appWindow.outerPosition();
+    const dpr = window.devicePixelRatio || 1;
+    // Same approach as anchorTo: window.screen gives current monitor dims in CSS px
+    const screenRight = Math.round(window.screen.width * dpr);
+    const expandedW   = Math.round((WIDGET_W + GAP + PANEL_W) * dpr);
 
-      settingsOpen = true;
-      await appWindow.setSize(new LogicalSize(WIDGET_W + GAP + PANEL_W, WINDOW_H));
+    panelOnLeft = (pos.x + expandedW) > screenRight;
+    settingsOpen = true;
+    await appWindow.setSize(new LogicalSize(WIDGET_W + GAP + PANEL_W, WINDOW_H));
 
-      if (panelOnLeft) {
-        const shiftPx = Math.round((PANEL_W + GAP) * scale);
-        await appWindow.setPosition({ type: 'Physical', x: pos.x - shiftPx, y: pos.y });
-      }
-    } catch {
-      // Fallback: just show panel on the right without smart positioning
-      panelOnLeft = false;
-      settingsOpen = true;
-      await appWindow.setSize(new LogicalSize(WIDGET_W + GAP + PANEL_W, WINDOW_H));
+    if (panelOnLeft) {
+      const shiftPx = Math.round((PANEL_W + GAP) * dpr);
+      await appWindow.setPosition({ type: 'Physical', x: pos.x - shiftPx, y: pos.y });
     }
   }
 
   async function closeSettings() {
-    try {
-      const pos   = await appWindow.outerPosition();
-      const monitor = await appWindow.currentMonitor();
-      const scale = monitor?.scaleFactor ?? 1;
+    const pos = await appWindow.outerPosition();
+    const dpr = window.devicePixelRatio || 1;
 
-      settingsOpen = false;
-      await appWindow.setSize(new LogicalSize(WIDGET_W, WINDOW_H));
+    settingsOpen = false;
+    await appWindow.setSize(new LogicalSize(WIDGET_W, WINDOW_H));
 
-      if (panelOnLeft) {
-        const shiftPx = Math.round((PANEL_W + GAP) * scale);
-        await appWindow.setPosition({ type: 'Physical', x: pos.x + shiftPx, y: pos.y });
-      }
-    } catch {
-      settingsOpen = false;
-      await appWindow.setSize(new LogicalSize(WIDGET_W, WINDOW_H));
+    if (panelOnLeft) {
+      const shiftPx = Math.round((PANEL_W + GAP) * dpr);
+      await appWindow.setPosition({ type: 'Physical', x: pos.x + shiftPx, y: pos.y });
     }
   }
 
