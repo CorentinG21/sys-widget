@@ -97,9 +97,9 @@ html, body {
   --color-dl: #a0a0a0;
 }
 
-[data-theme="neutral"] {
-  --color-ok: #909090;
-  --color-dl: #b0b0b0;
+[data-theme="custom"] {
+  --color-ok: var(--custom-accent, #c084fc);
+  --color-dl: var(--custom-accent, #c084fc);
 }
 
 

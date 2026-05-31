@@ -12,17 +12,23 @@
 
   // Local state drives the UI reactivity
   let accentColor  = $state<AccentColor>('cyan');
+  let customColor  = $state('#c084fc');
   let transparency = $state<number>(78);
   let showDetails  = $state(true);
 
   onMount(() => {
     accentColor  = settings.accentColor;
+    customColor  = settings.customColor;
     transparency = settings.transparency;
     showDetails  = settings.showDetails;
   });
 
-  function applyAccent(val: AccentColor) {
-    document.documentElement.dataset.theme = val;
+  function applyAccent(val: AccentColor, hex?: string) {
+    const html = document.documentElement;
+    if (val === 'custom' && hex) {
+      html.style.setProperty('--custom-accent', hex);
+    }
+    html.dataset.theme = val;
   }
 
   function applyTransp(val: number) {
@@ -44,7 +50,18 @@
   async function setAccent(val: AccentColor) {
     accentColor = val;
     settings.accentColor = val;
-    applyAccent(val);
+    applyAccent(val, customColor);
+    await saveSettings();
+  }
+
+  async function onCustomColorInput(e: Event) {
+    const hex = (e.currentTarget as HTMLInputElement).value;
+    customColor = hex;
+    settings.customColor = hex;
+    // Switch to custom theme and apply immediately
+    accentColor = 'custom';
+    settings.accentColor = 'custom';
+    applyAccent('custom', hex);
     await saveSettings();
   }
 
@@ -69,10 +86,9 @@
 
 
   const ACCENTS: { id: AccentColor; color: string; label: string }[] = [
-    { id: 'cyan',    color: '#06d6a0', label: 'Cyan Néon' },
-    { id: 'matrix',  color: '#00ff41', label: 'Vert Matrix' },
-    { id: 'white',   color: '#e0e0e0', label: 'Blanc Épuré' },
-    { id: 'neutral', color: '#909090', label: 'Gris Neutre' },
+    { id: 'cyan',   color: '#06d6a0', label: 'Cyan Néon' },
+    { id: 'matrix', color: '#00ff41', label: 'Vert Matrix' },
+    { id: 'white',  color: '#e0e0e0', label: 'Blanc Épuré' },
   ];
 
 </script>
@@ -95,6 +111,24 @@
           onclick={() => setAccent(accent.id)}
         ></button>
       {/each}
+
+      <!-- Custom color picker -->
+      <label
+        class="swatch swatch-custom"
+        class:active={accentColor === 'custom'}
+        style="background: {accentColor === 'custom' ? customColor : 'conic-gradient(from 0deg, #ff6b6b, #ffd166, #06d6a0, #74d7f7, #7c5cfc, #ff6b6b)'};"
+        title="Couleur personnalisée"
+      >
+        <input
+          type="color"
+          class="color-input"
+          value={customColor}
+          oninput={onCustomColorInput}
+        />
+        {#if accentColor !== 'custom'}
+          <span class="picker-icon">🎨</span>
+        {/if}
+      </label>
     </div>
   </section>
 
@@ -211,6 +245,35 @@
   .swatch.active {
     border-color: rgba(255, 255, 255, 0.85);
     transform: scale(1.2);
+  }
+
+  /* ── Custom color picker swatch ── */
+  .swatch-custom {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+  }
+
+  .color-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+
+  .picker-icon {
+    font-size: 10px;
+    pointer-events: none;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 1px rgba(0,0,0,0.5));
   }
 
   /* ── Transparency slider ── */

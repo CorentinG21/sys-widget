@@ -1,22 +1,24 @@
 import { load } from '@tauri-apps/plugin-store';
 import { invoke } from '@tauri-apps/api/core';
 
-export type AccentColor = 'cyan' | 'matrix' | 'white' | 'neutral';
+export type AccentColor = 'cyan' | 'matrix' | 'white' | 'custom';
 
 /** Transparency: 0–100 (opacity %). Default 78. */
 export type Transparency = number;
 
 export interface Settings {
-  accentColor: AccentColor;
+  accentColor:  AccentColor;
+  customColor:  string;        // hex for 'custom' theme, e.g. "#c084fc"
   transparency: Transparency;  // 20–98
-  showDetails: boolean;
-  locked: boolean;
+  showDetails:  boolean;
+  locked:       boolean;
 }
 
 const STORE_PATH = 'config.json';
 
 export const settings = $state<Settings>({
   accentColor:  'cyan',
+  customColor:  '#c084fc',
   transparency: 78,
   showDetails:  true,
   locked:       false,
@@ -33,7 +35,11 @@ function migrateTransparency(val: unknown): number {
 export async function loadSettings(): Promise<void> {
   const store = await load(STORE_PATH);
   const savedAccent = await store.get<string>('accentColor');
-  settings.accentColor  = (savedAccent === 'windows' ? 'neutral' : savedAccent as AccentColor) ?? 'cyan';
+  // Migrate legacy values
+  const migratedAccent = (savedAccent === 'windows' || savedAccent === 'neutral')
+    ? 'cyan' : savedAccent as AccentColor;
+  settings.accentColor  = migratedAccent ?? 'cyan';
+  settings.customColor  = (await store.get<string>('customColor'))  ?? '#c084fc';
   settings.transparency = migrateTransparency(await store.get('transparency'));
   settings.showDetails  = (await store.get<boolean>('showDetails')) ?? true;
   settings.locked       = (await store.get<boolean>('locked'))      ?? false;
@@ -43,6 +49,7 @@ export async function saveSettings(): Promise<void> {
   try {
     const store = await load(STORE_PATH);
     await store.set('accentColor',  settings.accentColor);
+    await store.set('customColor',  settings.customColor);
     await store.set('transparency', settings.transparency);
     await store.set('showDetails',  settings.showDetails);
     await store.set('locked',       settings.locked);
@@ -57,6 +64,9 @@ export async function applyToDocument(): Promise<void> {
   const html = document.documentElement;
 
   // Theme
+  if (settings.accentColor === 'custom') {
+    html.style.setProperty('--custom-accent', settings.customColor);
+  }
   html.dataset.theme = settings.accentColor;
 
   // Transparency — set CSS var directly (no more data-attribute)
