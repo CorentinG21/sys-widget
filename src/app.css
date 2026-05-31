@@ -105,6 +105,7 @@ html, body {
 /* "glass" = default in :root, no selector needed */
 
 /* ── Hide details toggle ── */
+/* !important needed: Svelte scoped .sub-line rule has equal specificity */
 [data-hide-details] .sub-line {
-  display: none;
+  display: none !important;
 }

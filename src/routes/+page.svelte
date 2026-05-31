@@ -124,6 +124,43 @@
     }
   }
 
+  // ── Anchor widget to screen corner ──────────────────────────────────────
+
+  async function anchorTo(corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') {
+    try {
+      const dpr = window.devicePixelRatio || 1;
+      // Use JS screen API — works without extra Tauri capabilities
+      const sw = Math.round(window.screen.width  * dpr);
+      const sh = Math.round(window.screen.height * dpr);
+      // Monitor origin: screenLeft/screenTop give window position in CSS px
+      // On a single monitor the origin is (0,0); on multi-monitor it may differ
+      const originX = Math.round((window.screenLeft ?? 0) >= 0
+        ? 0  // primary monitor
+        : window.screenLeft * dpr);
+      const originY = 0;
+
+      const widgetW = Math.round(320 * dpr);
+      const m       = Math.round(12  * dpr);
+
+      // Estimate window height from outer content — fallback to 400px physical
+      const winH = Math.round(window.outerHeight * dpr) || Math.round(400 * dpr);
+
+      let x: number, y: number;
+      if (corner === 'top-left')          { x = originX + m;               y = originY + m; }
+      else if (corner === 'top-right')    { x = originX + sw - widgetW - m; y = originY + m; }
+      else if (corner === 'bottom-left')  { x = originX + m;               y = originY + sh - winH - m; }
+      else                                { x = originX + sw - widgetW - m; y = originY + sh - winH - m; }
+
+      await appWindow.setPosition({ type: 'Physical', x, y });
+
+      const store = await load(STORE_PATH);
+      await store.set(POS_KEY, { x, y });
+      await store.save();
+    } catch (e) {
+      console.error('[anchor]', e);
+    }
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   onMount(async () => {
@@ -178,7 +215,7 @@
 
 <div class="app-layout" class:panel-left={panelOnLeft}>
   {#if settingsOpen && panelOnLeft}
-    <SettingsPanel onclose={closeSettings} />
+    <SettingsPanel onclose={closeSettings} onanchor={anchorTo} />
   {/if}
 
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -218,7 +255,7 @@
   </div>
 
   {#if settingsOpen && !panelOnLeft}
-    <SettingsPanel onclose={closeSettings} />
+    <SettingsPanel onclose={closeSettings} onanchor={anchorTo} />
   {/if}
 </div>
 

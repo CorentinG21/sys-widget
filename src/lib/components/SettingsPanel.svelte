@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { load } from '@tauri-apps/plugin-store';
   import { settings, saveSettings } from '$lib/stores/settings.svelte';
   import type { AccentColor, Transparency } from '$lib/stores/settings.svelte';
 
   interface Props {
     onclose: () => void;
+    onanchor: (corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => Promise<void>;
   }
-  const { onclose }: Props = $props();
+  const { onclose, onanchor }: Props = $props();
 
   // Local state drives the UI reactivity
   let accentColor  = $state<AccentColor>('cyan');
@@ -64,41 +64,6 @@
     await saveSettings();
   }
 
-  async function anchorTo(corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') {
-    const win = getCurrentWindow();
-    try {
-      // Prefer Tauri monitor API; fall back to JS screen properties
-      const monitor = await win.currentMonitor().catch(() => null);
-      const winSize = await win.outerSize().catch(() => null);
-
-      const dpr   = monitor?.scaleFactor ?? window.devicePixelRatio;
-      // Monitor origin: Tauri gives physical px; fallback assumes primary monitor at (0,0)
-      const mx = monitor?.position.x ?? 0;
-      const my = monitor?.position.y ?? 0;
-      // Monitor dimensions: Tauri gives physical px; fallback uses CSS px × DPR
-      const mw = monitor?.size.width  ?? Math.round(window.screen.width  * dpr);
-      const mh = monitor?.size.height ?? Math.round(window.screen.height * dpr);
-      // Window height in physical px (for bottom anchors)
-      const wh = winSize?.height ?? Math.round(window.outerHeight * dpr);
-
-      const widgetW = Math.round(320 * dpr);  // widget is always 320 logical px
-      const margin  = Math.round(12  * dpr);
-
-      let x: number, y: number;
-      if (corner === 'top-left')          { x = mx + margin;               y = my + margin; }
-      else if (corner === 'top-right')    { x = mx + mw - widgetW - margin; y = my + margin; }
-      else if (corner === 'bottom-left')  { x = mx + margin;               y = my + mh - wh - margin; }
-      else                                { x = mx + mw - widgetW - margin; y = my + mh - wh - margin; }
-
-      await win.setPosition({ type: 'Physical', x, y });
-
-      const store = await load('config.json');
-      await store.set('position', { x, y });
-      await store.save();
-    } catch (e) {
-      console.error('[anchor] failed:', e);
-    }
-  }
 
   const ACCENTS: { id: AccentColor; color: string; label: string }[] = [
     { id: 'cyan',    color: '#06d6a0', label: 'Cyan Néon' },
@@ -166,10 +131,10 @@
   <section>
     <div class="section-label">Ancrer le widget</div>
     <div class="anchor-grid">
-      <button class="anchor-btn" onclick={() => anchorTo('top-left')}>↖ Haut gauche</button>
-      <button class="anchor-btn" onclick={() => anchorTo('top-right')}>↗ Haut droite</button>
-      <button class="anchor-btn" onclick={() => anchorTo('bottom-left')}>↙ Bas gauche</button>
-      <button class="anchor-btn" onclick={() => anchorTo('bottom-right')}>↘ Bas droite</button>
+      <button class="anchor-btn" onclick={() => onanchor('top-left')}>↖ Haut gauche</button>
+      <button class="anchor-btn" onclick={() => onanchor('top-right')}>↗ Haut droite</button>
+      <button class="anchor-btn" onclick={() => onanchor('bottom-left')}>↙ Bas gauche</button>
+      <button class="anchor-btn" onclick={() => onanchor('bottom-right')}>↘ Bas droite</button>
     </div>
   </section>
 </div>
