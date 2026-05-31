@@ -12,7 +12,7 @@
   const downloadColor = $derived(netColors(network.download).download);
 </script>
 
-<div class="metric-row net-row">
+<div class="net-row">
   <span class="lbl">NET</span>
   <div class="net-values">
     <span style="color: {uploadColor}; font-variant-numeric: tabular-nums;">
@@ -42,7 +42,7 @@
 
   .net-values {
     display: flex;
-    gap: 12px;
+    gap: 14px;
     font-size: 12px;
   }
 </style>

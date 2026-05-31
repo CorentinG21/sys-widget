@@ -3,19 +3,12 @@
   import Sparkline from './Sparkline.svelte';
 
   interface Props {
-    /** Short label shown on the left, e.g. "CPU", "RAM". */
     label: string;
-    /** Usage 0–100. */
     percent: number;
-    /** Optional temperature in °C — shown on sub-line. */
     temp?: number | null;
-    /** Optional detail string (e.g. "12.8 / 31.9 GB") — shown on sub-line. */
     detail?: string;
-    /** When true, renders the row in a muted "N/A" state (sensor unavailable). */
     na?: boolean;
-    /** Historical readings for the sparkline (last 30 s). */
     history?: number[];
-    /** Extra text appended to the sub-line (e.g. "🔥 chrome.exe · 3%"). */
     subExtra?: string;
   }
 
@@ -29,23 +22,32 @@
     subExtra = '',
   }: Props = $props();
 
-  const color    = $derived(na ? 'rgba(255,255,255,0.25)' : thresholdColor(percent));
+  const color    = $derived(na ? 'rgba(255,255,255,0.20)' : thresholdColor(percent));
   const barWidth = $derived(na ? 0 : Math.min(100, Math.max(0, percent)));
   const hasSubline = $derived(!na && (temp !== null || !!detail || !!subExtra));
+
+  // Build sub-line segments with · separator
+  const subParts = $derived.by(() => {
+    const parts: string[] = [];
+    if (temp !== null && temp !== undefined) parts.push(`${temp.toFixed(0)}°`);
+    if (detail) parts.push(detail);
+    return parts;
+  });
 </script>
 
 <div class="metric-row">
-  <!-- Main line: label | bar | % — sparkline anchors here so it centers on the bar -->
+  <!-- Main line: label | bar | % — sparkline anchors here -->
   <div class="main-line">
     <span class="lbl">{label}</span>
     <div class="bar-track">
-      <div class="bar-fill" style="width: {barWidth}%; background: {color};"></div>
+      <div class="bar-fill" style="width: {barWidth}%; background: {color};">
+        <div class="bar-shimmer"></div>
+      </div>
     </div>
     <span class="pct" style="color: {color};">
       {#if na}N/A{:else}{percent.toFixed(0)}%{/if}
     </span>
 
-    <!-- Sparkline anchored inside main-line so top:50% centers on bar height, not sub-line -->
     {#if history.length >= 2 && !na}
       <div class="sparkline-wrap">
         <Sparkline values={history} {color} />
@@ -56,13 +58,12 @@
   <!-- Sub-line: temp · detail · subExtra -->
   {#if hasSubline}
     <div class="sub-line">
-      {#if temp !== null}
-        <span class="sub-fixed">{temp.toFixed(0)}°C</span>
-      {/if}
-      {#if detail}
-        <span class="sub-fixed">{detail}</span>
-      {/if}
+      {#each subParts as part, i}
+        {#if i > 0}<span class="sep">·</span>{/if}
+        <span class="sub-fixed">{part}</span>
+      {/each}
       {#if subExtra}
+        {#if subParts.length > 0}<span class="sep">·</span>{/if}
         <span class="sub-extra">{subExtra}</span>
       {/if}
     </div>
@@ -70,9 +71,8 @@
 </div>
 
 <style>
-  /* ── Main line: label | bar | % ── */
   .main-line {
-    position: relative; /* sparkline-wrap anchors here */
+    position: relative;
     display: grid;
     grid-template-columns: 36px 1fr 28px;
     gap: 6px;
@@ -87,17 +87,28 @@
   }
 
   .bar-track {
-    height: 4px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 2px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
     overflow: hidden;
   }
 
   .bar-fill {
+    position: relative;
     height: 100%;
-    border-radius: 2px;
+    border-radius: 3px;
     transition: width 0.4s ease, background-color 0.3s ease;
     min-width: 2px;
+    overflow: hidden;
+  }
+
+  /* Subtle right-side shimmer — adds depth to every bar */
+  .bar-shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 40%, rgba(255,255,255,0.18) 100%);
+    border-radius: inherit;
+    pointer-events: none;
   }
 
   .pct {
@@ -109,8 +120,9 @@
   /* ── Sub-line ── */
   .sub-line {
     display: flex;
-    gap: 8px;
-    padding-left: 42px; /* 36px label + 6px gap */
+    align-items: center;
+    gap: 5px;
+    padding-left: 42px;
     margin-top: 2px;
     font-size: 11px;
     color: rgba(255, 255, 255, 0.40);
@@ -118,14 +130,18 @@
     white-space: nowrap;
   }
 
-  /* temp/detail are short — don't let them shrink or wrap */
   .sub-fixed {
     flex-shrink: 0;
   }
 
-  /* subExtra (top process) takes remaining space and truncates */
+  .sep {
+    color: rgba(255, 255, 255, 0.18);
+    flex-shrink: 0;
+    font-size: 10px;
+  }
+
   .sub-extra {
-    color: rgba(255, 255, 255, 0.30);
+    color: rgba(255, 255, 255, 0.28);
     overflow: hidden;
     text-overflow: ellipsis;
     flex: 1;
@@ -141,8 +157,8 @@
     opacity: 0;
     transition: opacity 0.15s ease;
     pointer-events: none;
-    background: rgba(10, 10, 10, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(10, 10, 10, 0.90);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 4px;
     padding: 2px 4px;
   }
