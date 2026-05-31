@@ -104,9 +104,12 @@
   // up to .widget. We call startDragging() explicitly so any left-click anywhere
   // in the widget initiates hold-and-drag, regardless of what element was clicked.
   function onWidgetMouseDown(e: MouseEvent) {
-    if (e.button === 0) {         // left button only — ignore right-click (context menu)
-      appWindow.startDragging();
-    }
+    if (e.button !== 0) return;   // left button only
+    // Don't start drag when clicking an interactive element (button, link…)
+    // e.g. the UpdateBanner button must receive its onclick normally.
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, a, [role="button"]')) return;
+    appWindow.startDragging();
   }
 </script>
 
