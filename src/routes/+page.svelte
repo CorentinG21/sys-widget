@@ -2,24 +2,44 @@
   import '../app.css';
   import { onMount, onDestroy } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { LogicalSize } from '@tauri-apps/api/dpi';
   import { listen } from '@tauri-apps/api/event';
   import { load } from '@tauri-apps/plugin-store';
 
   import { metrics, cpuHistory, gpuHistory, startListening, stopListening } from '$lib/stores/metrics.svelte';
-  import { settings, loadSettings, applyToDocument, type Settings } from '$lib/stores/settings.svelte';
+  import { settings, loadSettings, applyToDocument } from '$lib/stores/settings.svelte';
 
-  // Cache the window handle — getCurrentWindow() is an IPC call, no need to repeat it.
   const appWindow = getCurrentWindow();
   import MetricRow    from '$lib/components/MetricRow.svelte';
   import DiskRow      from '$lib/components/DiskRow.svelte';
   import NetworkRow   from '$lib/components/NetworkRow.svelte';
   import ContextMenu  from '$lib/components/ContextMenu.svelte';
   import UpdateBanner from '$lib/components/UpdateBanner.svelte';
+  import SettingsPanel from '$lib/components/SettingsPanel.svelte';
   import { formatBytes } from '$lib/utils/colors';
 
   // ── Update state ─────────────────────────────────────────────────────────
 
   let updateVersion = $state<string | null>(null);
+
+  // ── Settings panel state ─────────────────────────────────────────────────
+
+  let settingsOpen = $state(false);
+
+  const WIDGET_W   = 320;
+  const PANEL_W    = 210;
+  const GAP        = 8;
+  const WINDOW_H   = 600;
+
+  async function openSettings() {
+    settingsOpen = true;
+    await appWindow.setSize(new LogicalSize(WIDGET_W + GAP + PANEL_W, WINDOW_H));
+  }
+
+  async function closeSettings() {
+    settingsOpen = false;
+    await appWindow.setSize(new LogicalSize(WIDGET_W, WINDOW_H));
+  }
 
   // ── Context menu state ───────────────────────────────────────────────────
 
@@ -27,12 +47,11 @@
   let menuX = $state(0);
   let menuY = $state(0);
 
-  const MENU_WIDTH  = 230;   // min-width 200px + borders + "Rechercher une mise à jour" overflow
-  const MENU_HEIGHT = 210;   // ~7 items × 26px + dividers + padding
+  const MENU_WIDTH  = 230;
+  const MENU_HEIGHT = 210;
 
   function onContextMenu(e: MouseEvent) {
     e.preventDefault();
-    // Flip left/up if the menu would overflow the window, then clamp to [0, max].
     const rawX = e.clientX + MENU_WIDTH  > window.innerWidth  ? e.clientX - MENU_WIDTH  : e.clientX;
     const rawY = e.clientY + MENU_HEIGHT > window.innerHeight ? e.clientY - MENU_HEIGHT : e.clientY;
     menuX = Math.max(0, Math.min(rawX, window.innerWidth  - MENU_WIDTH));
@@ -73,25 +92,15 @@
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   onMount(async () => {
-    await restorePosition();          // position first (window still hidden)
+    await restorePosition();
     await appWindow.setAlwaysOnBottom(true);
-    await appWindow.show();           // reveal only after position is correct
+    await appWindow.show();
     await appWindow.onMoved(savePosition);
-    // Save on any close (OS kill, Task Manager, etc.) as a safety net
     await appWindow.onCloseRequested(async () => { await savePosition(); });
     await startListening();
     await loadSettings();
     await applyToDocument();
 
-    await listen<Settings>('settings-changed', async (event) => {
-      settings.accentColor = event.payload.accentColor;
-      settings.transparency = event.payload.transparency;
-      settings.showDetails  = event.payload.showDetails;
-      settings.locked       = event.payload.locked;
-      await applyToDocument();
-    });
-
-    // Listen for update notifications from the Rust backend.
     await listen<{ version: string }>('update-available', (event) => {
       updateVersion = event.payload.version;
     });
@@ -100,7 +109,6 @@
   onDestroy(() => { stopListening(); });
 
   const ramDetail  = $derived(`${formatBytes(metrics.ram.used)} / ${formatBytes(metrics.ram.total)}`);
-  // Don't show VRAM detail for iGPUs with shared memory (vram_total = 0)
   const vramDetail = $derived(
     metrics.gpu && metrics.gpu.vram_total > 0
       ? `${formatBytes(metrics.gpu.vram_used)} / ${formatBytes(metrics.gpu.vram_total)}`
@@ -113,9 +121,7 @@
   );
 
   // ── Drag ─────────────────────────────────────────────────────────────────
-  // mousedown bubbles from ALL children (even pointer-events:auto metric-rows)
-  // up to .widget. We call startDragging() explicitly so any left-click anywhere
-  // in the widget initiates hold-and-drag, regardless of what element was clicked.
+
   function onWidgetMouseDown(e: MouseEvent) {
     if (e.button !== 0) return;
     if (settings.locked) return;
@@ -132,40 +138,57 @@
   updateVersion={updateVersion}
   onclose={closeMenu}
   onsaveposition={savePosition}
+  onsettings={openSettings}
 />
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div
-  class="widget"
-  role="application"
-  aria-label="SysmonWidget"
-  onmousedown={onWidgetMouseDown}
-  oncontextmenu={onContextMenu}
->
+<div class="app-layout">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="widget"
+    role="application"
+    aria-label="SysmonWidget"
+    onmousedown={onWidgetMouseDown}
+    oncontextmenu={onContextMenu}
+  >
 
-  {#if updateVersion}
-    <UpdateBanner version={updateVersion} />
-  {/if}
+    {#if updateVersion}
+      <UpdateBanner version={updateVersion} />
+    {/if}
 
-  <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} subExtra={cpuSubExtra} />
+    <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} subExtra={cpuSubExtra} />
 
-  {#if metrics.gpu}
-    <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
-  {:else}
-    <MetricRow label="GPU" percent={0} na={true} />
-  {/if}
+    {#if metrics.gpu}
+      <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
+    {:else}
+      <MetricRow label="GPU" percent={0} na={true} />
+    {/if}
 
-  <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />
+    <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />
 
-  {#if metrics.disks.length > 0}
+    {#if metrics.disks.length > 0}
+      <div class="divider"></div>
+      {#each metrics.disks as disk (disk.mount)}
+        <DiskRow {disk} />
+      {/each}
+    {/if}
+
     <div class="divider"></div>
-    {#each metrics.disks as disk (disk.mount)}
-      <DiskRow {disk} />
-    {/each}
+
+    <NetworkRow network={metrics.network} />
+
+  </div>
+
+  {#if settingsOpen}
+    <SettingsPanel onclose={closeSettings} />
   {/if}
-
-  <div class="divider"></div>
-
-  <NetworkRow network={metrics.network} />
-
 </div>
+
+<style>
+  .app-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+    width: fit-content;
+  }
+</style>

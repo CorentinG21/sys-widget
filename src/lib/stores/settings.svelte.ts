@@ -28,45 +28,30 @@ export async function loadSettings(): Promise<void> {
   settings.locked       = (await store.get<boolean>('locked'))       ?? false;
 }
 
-export async function saveAndEmit(): Promise<void> {
-  // Build payload explicitly — spreading a $state proxy can produce an incomplete object
-  const payload: Settings = {
-    accentColor: settings.accentColor,
-    transparency: settings.transparency,
-    showDetails:  settings.showDetails,
-    locked:       settings.locked,
-  };
-
-  // Route through Rust so the event reliably reaches all webviews
-  await invoke('broadcast_settings', payload);
-
+export async function saveSettings(): Promise<void> {
   try {
     const store = await load(STORE_PATH);
-    await store.set('accentColor', payload.accentColor);
-    await store.set('transparency', payload.transparency);
-    await store.set('showDetails',  payload.showDetails);
-    await store.set('locked',       payload.locked);
+    await store.set('accentColor', settings.accentColor);
+    await store.set('transparency', settings.transparency);
+    await store.set('showDetails',  settings.showDetails);
+    await store.set('locked',       settings.locked);
     await store.save();
   } catch (e) {
     console.error('[settings] save failed:', e);
   }
 }
 
-/** Apply theme + transparency + hide-details to the document. */
+/** Apply current settings to the document (CSS vars + data-attributes). */
 export async function applyToDocument(): Promise<void> {
   const html = document.documentElement;
 
-  // Theme
   if (settings.accentColor === 'windows') {
     const hex = await invoke<string>('get_accent_color');
     html.style.setProperty('--windows-accent', hex);
   }
   html.dataset.theme = settings.accentColor;
-
-  // Transparency
   html.dataset.transparency = settings.transparency;
 
-  // Details
   if (settings.showDetails) {
     delete html.dataset.hideDetails;
   } else {

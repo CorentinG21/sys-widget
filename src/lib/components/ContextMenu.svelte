@@ -2,10 +2,6 @@
   import { invoke } from '@tauri-apps/api/core';
   import { getVersion } from '@tauri-apps/api/app';
   import { onMount } from 'svelte';
-  import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-  import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { PhysicalPosition } from '@tauri-apps/api/dpi';
-
   interface Props {
     x: number;
     y: number;
@@ -14,9 +10,11 @@
     onclose: () => void;
     /** Called before any action that closes/restarts the app so position is saved first. */
     onsaveposition: () => Promise<void>;
+    /** Toggle the inline settings panel. */
+    onsettings: () => void;
   }
 
-  const { x, y, visible, updateVersion, onclose, onsaveposition }: Props = $props();
+  const { x, y, visible, updateVersion, onclose, onsaveposition, onsettings }: Props = $props();
 
   let version = $state('…');
   let startupEnabled = $state(false);
@@ -47,21 +45,9 @@
     await invoke('restart_app');
   }
 
-  async function openSettings() {
+  function openSettings() {
     onclose();
-    const mainWin = getCurrentWindow();
-    const pos  = await mainWin.outerPosition();
-    const size = await mainWin.outerSize();
-
-    const settingsWin = await WebviewWindow.getByLabel('settings');
-    if (!settingsWin) return;
-
-    const gap = 8;
-    const targetX = pos.x + size.width + gap;
-
-    await settingsWin.setPosition(new PhysicalPosition(targetX, pos.y));
-    await settingsWin.show();
-    await settingsWin.setFocus();
+    onsettings();
   }
 
   async function quit() {
