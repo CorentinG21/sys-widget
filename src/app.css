@@ -79,3 +79,34 @@ html, body {
   background: rgba(255, 255, 255, 0.07);
   margin: 4px 0;
 }
+
+/* ── Color vars (overridden by data-theme attribute) ── */
+[data-theme="matrix"] {
+  --color-ok:     #00ff41;
+  --color-warn:   #aaff00;
+  --color-danger: #ff4444;
+  --color-dl:     #00cc33;
+}
+
+[data-theme="white"] {
+  --color-ok:     #e8e8e8;
+  --color-warn:   #cccccc;
+  --color-danger: #999999;
+  --color-dl:     #ffffff;
+}
+
+/* Windows theme: accent color injected via JS as --windows-accent */
+[data-theme="windows"] {
+  --color-ok: var(--windows-accent, #06d6a0);
+  --color-dl: var(--windows-accent, #74d7f7);
+}
+
+/* ── Transparency levels ── */
+[data-transparency="opaque"] { --glass-bg: rgba(10, 10, 10, 0.96); }
+[data-transparency="ultra"]  { --glass-bg: rgba(10, 10, 10, 0.40); }
+/* "glass" = default in :root, no selector needed */
+
+/* ── Hide details toggle ── */
+[data-hide-details] .sub-line {
+  display: none;
+}
