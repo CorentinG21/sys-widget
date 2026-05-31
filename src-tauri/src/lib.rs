@@ -101,41 +101,45 @@ async fn install_update(app: AppHandle) {
     }
 }
 
-/// Read the current Windows accent color from the registry.
-/// Returns a CSS hex string like "#0078d4". Falls back to "#06d6a0" on error.
+/// Read the current Windows accent color via WinRT UISettings (most reliable).
+/// Falls back to ColorizationColor registry key. Returns CSS hex like "#0078d4".
 #[tauri::command]
 fn get_accent_color() -> String {
     #[cfg(target_os = "windows")]
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+    // UISettings.GetColorValue gives R,G,B directly — no byte-order ambiguity.
+    // ColorizationColor fallback: stored as ARGB (A=MSB, R, G, B=LSB).
+    let ps = r#"
+try {
+    $ui = [Windows.UI.ViewManagement.UISettings,Windows.UI.ViewManagement,ContentType=WindowsRuntime]::new()
+    $c  = $ui.GetColorValue([Windows.UI.ViewManagement.UIColorType]::Accent)
+    '#{0:x2}{1:x2}{2:x2}' -f $c.R,$c.G,$c.B
+} catch {
+    try {
+        $v = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\DWM' -Name ColorizationColor -EA Stop).ColorizationColor
+        $r = ($v -shr 16) -band 0xFF
+        $g = ($v -shr 8)  -band 0xFF
+        $b =  $v          -band 0xFF
+        '#{0:x2}{1:x2}{2:x2}' -f $r,$g,$b
+    } catch { '#0078d4' }
+}
+"#;
+
     let mut cmd = std::process::Command::new("powershell");
-    cmd.args([
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\DWM' \
-         -Name AccentColor -ErrorAction SilentlyContinue).AccentColor",
-    ]);
+    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps]);
 
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
     if let Ok(output) = cmd.output() {
-        if output.status.success() {
-            let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if let Ok(val) = s.parse::<i64>() {
-                let val = val as u32;
-                let r = (val & 0xFF) as u8;
-                let g = ((val >> 8) & 0xFF) as u8;
-                let b = ((val >> 16) & 0xFF) as u8;
-                return format!("#{:02x}{:02x}{:02x}", r, g, b);
-            }
+        let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if s.starts_with('#') && s.len() == 7 {
+            return s;
         }
     }
-    "#06d6a0".to_string()
+    "#0078d4".to_string()
 }
 
 // ─── App setup ───────────────────────────────────────────────────────────────

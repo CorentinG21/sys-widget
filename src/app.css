@@ -82,18 +82,16 @@ html, body {
 }
 
 /* ── Color vars (overridden by data-theme attribute) ── */
+/* Themes only change the "ok" and "dl" accent colors.
+   warn (yellow) and danger (red) stay universal for semantic clarity. */
 [data-theme="matrix"] {
-  --color-ok:     #00ff41;
-  --color-warn:   #aaff00;
-  --color-danger: #ff4444;
-  --color-dl:     #00cc33;
+  --color-ok: #00ff41;
+  --color-dl: #00cc33;
 }
 
 [data-theme="white"] {
-  --color-ok:     #e8e8e8;
-  --color-warn:   #cccccc;
-  --color-danger: #999999;
-  --color-dl:     #ffffff;
+  --color-ok: #c8c8c8;
+  --color-dl: #a0a0a0;
 }
 
 /* Windows: --windows-accent injected via JS (get_accent_color) */

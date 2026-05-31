@@ -26,19 +26,45 @@
 
   let settingsOpen = $state(false);
 
-  const WIDGET_W   = 320;
-  const PANEL_W    = 210;
-  const GAP        = 8;
-  const WINDOW_H   = 600;
+  const WIDGET_W = 320;
+  const PANEL_W  = 210;
+  const GAP      = 8;
+  const WINDOW_H = 600;
+
+  let panelOnLeft = $state(false);
 
   async function openSettings() {
+    // Check if there's room to the right; if not, put panel on the left
+    const pos     = await appWindow.outerPosition();
+    const monitor = await appWindow.currentMonitor();
+    const scale   = monitor?.scaleFactor ?? 1;
+    const mRight  = (monitor?.position.x ?? 0) + (monitor?.size.width ?? 1920);
+    const expandedW = Math.round((WIDGET_W + GAP + PANEL_W) * scale);
+    panelOnLeft = (pos.x + expandedW) > mRight;
+
     settingsOpen = true;
     await appWindow.setSize(new LogicalSize(WIDGET_W + GAP + PANEL_W, WINDOW_H));
+
+    // If panel goes on the left, shift the window left to keep widget in place
+    if (panelOnLeft) {
+      const shiftPx = Math.round((PANEL_W + GAP) * scale);
+      await appWindow.setPosition({ type: 'Physical', x: pos.x - shiftPx, y: pos.y });
+    }
   }
 
   async function closeSettings() {
+    const pos = await appWindow.outerPosition();
+    const monitor = await appWindow.currentMonitor();
+    const scale   = monitor?.scaleFactor ?? 1;
+
     settingsOpen = false;
     await appWindow.setSize(new LogicalSize(WIDGET_W, WINDOW_H));
+
+    // Undo the left-shift if panel was on the left
+    if (panelOnLeft) {
+      const shiftPx = Math.round((PANEL_W + GAP) * scale);
+      await appWindow.setPosition({ type: 'Physical', x: pos.x + shiftPx, y: pos.y });
+    }
   }
 
   // ── Context menu state ───────────────────────────────────────────────────
@@ -141,7 +167,11 @@
   onsettings={openSettings}
 />
 
-<div class="app-layout">
+<div class="app-layout" class:panel-left={panelOnLeft}>
+  {#if settingsOpen && panelOnLeft}
+    <SettingsPanel onclose={closeSettings} />
+  {/if}
+
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="widget"
@@ -178,7 +208,7 @@
 
   </div>
 
-  {#if settingsOpen}
+  {#if settingsOpen && !panelOnLeft}
     <SettingsPanel onclose={closeSettings} />
   {/if}
 </div>

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { load } from '@tauri-apps/plugin-store';
-  import { settings, saveSettings, applyToDocument } from '$lib/stores/settings.svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { settings, saveSettings } from '$lib/stores/settings.svelte';
   import type { AccentColor, Transparency } from '$lib/stores/settings.svelte';
 
   interface Props {
@@ -10,7 +11,7 @@
   }
   const { onclose }: Props = $props();
 
-  // Local state drives the UI — synced from module store on mount
+  // Local state drives the UI reactivity
   let accentColor  = $state<AccentColor>('cyan');
   let transparency = $state<Transparency>('glass');
   let showDetails  = $state(true);
@@ -21,24 +22,49 @@
     showDetails  = settings.showDetails;
   });
 
+  // Apply theme directly to avoid state-reading issues
+  async function applyAccent(val: AccentColor) {
+    const html = document.documentElement;
+    if (val === 'windows') {
+      try {
+        const hex = await invoke<string>('get_accent_color');
+        html.style.setProperty('--windows-accent', hex);
+      } catch { /* keep existing fallback */ }
+    }
+    html.dataset.theme = val;
+  }
+
+  function applyTransp(val: Transparency) {
+    document.documentElement.dataset.transparency = val;
+  }
+
+  function applyDetails(show: boolean) {
+    const html = document.documentElement;
+    if (show) {
+      delete html.dataset.hideDetails;
+    } else {
+      html.dataset.hideDetails = '';
+    }
+  }
+
   async function setAccent(val: AccentColor) {
     accentColor = val;
     settings.accentColor = val;
-    await applyToDocument();
+    await applyAccent(val);
     await saveSettings();
   }
 
   async function setTransparency(val: Transparency) {
     transparency = val;
     settings.transparency = val;
-    await applyToDocument();
+    applyTransp(val);
     await saveSettings();
   }
 
   async function toggleDetails() {
     showDetails = !showDetails;
     settings.showDetails = showDetails;
-    await applyToDocument();
+    applyDetails(showDetails);
     await saveSettings();
   }
 
@@ -50,27 +76,30 @@
   async function anchorTo(corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') {
     const win = getCurrentWindow();
     const monitor = await win.currentMonitor();
-    if (!monitor) return;
+    const winSize = await win.outerSize();
+    if (!monitor || !winSize) return;
 
     const mx = monitor.position.x;
     const my = monitor.position.y;
     const mw = monitor.size.width;
     const mh = monitor.size.height;
-    // Widget logical width × scale factor = physical pixels
-    const widgetW = Math.round(320 * monitor.scaleFactor);
-    const widgetH = Math.round((await win.outerSize()).height);
-    const margin  = Math.round(12 * monitor.scaleFactor);
+    const scale  = monitor.scaleFactor;
+    // Use widget natural width (320 logical px) for corner math, not expanded window
+    const widgetW = Math.round(320 * scale);
+    const margin  = Math.round(12 * scale);
 
     let x: number, y: number;
-    if (corner === 'top-left')          { x = mx + margin;              y = my + margin; }
+    if (corner === 'top-left')          { x = mx + margin;                y = my + margin; }
     else if (corner === 'top-right')    { x = mx + mw - widgetW - margin; y = my + margin; }
-    else if (corner === 'bottom-left')  { x = mx + margin;              y = my + mh - widgetH - margin; }
-    else                                { x = mx + mw - widgetW - margin; y = my + mh - widgetH - margin; }
+    else if (corner === 'bottom-left')  { x = mx + margin;                y = my + mh - winSize.height - margin; }
+    else                                { x = mx + mw - widgetW - margin; y = my + mh - winSize.height - margin; }
 
-    await win.setPosition(new PhysicalPosition(x, y));
-    const store = await load('config.json');
-    await store.set('position', { x, y });
-    await store.save();
+    await win.setPosition({ type: 'Physical', x, y });
+    try {
+      const store = await load('config.json');
+      await store.set('position', { x, y });
+      await store.save();
+    } catch { /* non-blocking */ }
   }
 
   const ACCENTS: { id: AccentColor; color: string; label: string }[] = [
@@ -93,7 +122,6 @@
     <button class="close-btn" onclick={onclose}>✕</button>
   </div>
 
-  <!-- Couleur d'accentuation -->
   <section>
     <div class="section-label">Couleur</div>
     <div class="swatches">
@@ -111,7 +139,6 @@
 
   <div class="sdivider"></div>
 
-  <!-- Transparence -->
   <section>
     <div class="section-label">Transparence</div>
     <div class="radio-group">
@@ -127,7 +154,6 @@
 
   <div class="sdivider"></div>
 
-  <!-- Toggles -->
   <section>
     <button class="toggle-row" onclick={toggleDetails}>
       {showDetails ? '✓' : '○'} Afficher les détails
@@ -139,7 +165,6 @@
 
   <div class="sdivider"></div>
 
-  <!-- Ancrage -->
   <section>
     <div class="section-label">Ancrer le widget</div>
     <div class="anchor-grid">
@@ -251,11 +276,7 @@
   }
   .toggle-row:hover { color: #e8e8e8; }
 
-  .anchor-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
-  }
+  .anchor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 
   .anchor-btn {
     background: rgba(255, 255, 255, 0.05);
@@ -274,8 +295,5 @@
     color: #e8e8e8;
   }
 
-  .sdivider {
-    height: 1px;
-    background: rgba(255, 255, 255, 0.07);
-  }
+  .sdivider { height: 1px; background: rgba(255, 255, 255, 0.07); }
 </style>
