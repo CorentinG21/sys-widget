@@ -1,7 +1,7 @@
 [package]
 name = "sysmon-widget"
-version = "2.4.0"
-description = "SysmonWidget Ã¢â‚¬â€ system monitoring overlay for Windows"
+version = "2.4.1"
+description = "SysmonWidget ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â system monitoring overlay for Windows"
 authors = ["CorentinG21"]
 edition = "2021"
 
