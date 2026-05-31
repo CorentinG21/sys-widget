@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { load } from '@tauri-apps/plugin-store';
-  import { invoke } from '@tauri-apps/api/core';
   import { settings, saveSettings } from '$lib/stores/settings.svelte';
   import type { AccentColor, Transparency } from '$lib/stores/settings.svelte';
 
@@ -67,31 +66,38 @@
 
   async function anchorTo(corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') {
     const win = getCurrentWindow();
-    const monitor = await win.currentMonitor();
-    const winSize = await win.outerSize();
-    if (!monitor || !winSize) return;
-
-    const mx = monitor.position.x;
-    const my = monitor.position.y;
-    const mw = monitor.size.width;
-    const mh = monitor.size.height;
-    const scale  = monitor.scaleFactor;
-    // Use widget natural width (320 logical px) for corner math, not expanded window
-    const widgetW = Math.round(320 * scale);
-    const margin  = Math.round(12 * scale);
-
-    let x: number, y: number;
-    if (corner === 'top-left')          { x = mx + margin;                y = my + margin; }
-    else if (corner === 'top-right')    { x = mx + mw - widgetW - margin; y = my + margin; }
-    else if (corner === 'bottom-left')  { x = mx + margin;                y = my + mh - winSize.height - margin; }
-    else                                { x = mx + mw - widgetW - margin; y = my + mh - winSize.height - margin; }
-
-    await win.setPosition({ type: 'Physical', x, y });
     try {
+      // Prefer Tauri monitor API; fall back to JS screen properties
+      const monitor = await win.currentMonitor().catch(() => null);
+      const winSize = await win.outerSize().catch(() => null);
+
+      const dpr   = monitor?.scaleFactor ?? window.devicePixelRatio;
+      // Monitor origin: Tauri gives physical px; fallback assumes primary monitor at (0,0)
+      const mx = monitor?.position.x ?? 0;
+      const my = monitor?.position.y ?? 0;
+      // Monitor dimensions: Tauri gives physical px; fallback uses CSS px × DPR
+      const mw = monitor?.size.width  ?? Math.round(window.screen.width  * dpr);
+      const mh = monitor?.size.height ?? Math.round(window.screen.height * dpr);
+      // Window height in physical px (for bottom anchors)
+      const wh = winSize?.height ?? Math.round(window.outerHeight * dpr);
+
+      const widgetW = Math.round(320 * dpr);  // widget is always 320 logical px
+      const margin  = Math.round(12  * dpr);
+
+      let x: number, y: number;
+      if (corner === 'top-left')          { x = mx + margin;               y = my + margin; }
+      else if (corner === 'top-right')    { x = mx + mw - widgetW - margin; y = my + margin; }
+      else if (corner === 'bottom-left')  { x = mx + margin;               y = my + mh - wh - margin; }
+      else                                { x = mx + mw - widgetW - margin; y = my + mh - wh - margin; }
+
+      await win.setPosition({ type: 'Physical', x, y });
+
       const store = await load('config.json');
       await store.set('position', { x, y });
       await store.save();
-    } catch { /* non-blocking */ }
+    } catch (e) {
+      console.error('[anchor] failed:', e);
+    }
   }
 
   const ACCENTS: { id: AccentColor; color: string; label: string }[] = [
