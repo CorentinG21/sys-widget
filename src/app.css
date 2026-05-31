@@ -102,10 +102,6 @@ html, body {
   --color-dl: #b0b0b0;
 }
 
-/* ── Transparency levels ── */
-[data-transparency="opaque"] { --glass-bg: rgba(10, 10, 10, 0.96); }
-[data-transparency="ultra"]  { --glass-bg: rgba(10, 10, 10, 0.40); }
-/* "glass" = default in :root, no selector needed */
 
 /* ── Hide details toggle ── */
 /* !important needed: Svelte scoped .sub-line rule has equal specificity */

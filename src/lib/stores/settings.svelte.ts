@@ -2,11 +2,13 @@ import { load } from '@tauri-apps/plugin-store';
 import { invoke } from '@tauri-apps/api/core';
 
 export type AccentColor = 'cyan' | 'matrix' | 'white' | 'neutral';
-export type Transparency = 'opaque' | 'glass' | 'ultra';
+
+/** Transparency: 0–100 (opacity %). Default 78. */
+export type Transparency = number;
 
 export interface Settings {
   accentColor: AccentColor;
-  transparency: Transparency;
+  transparency: Transparency;  // 20–98
   showDetails: boolean;
   locked: boolean;
 }
@@ -14,26 +16,33 @@ export interface Settings {
 const STORE_PATH = 'config.json';
 
 export const settings = $state<Settings>({
-  accentColor: 'cyan',
-  transparency: 'glass',
-  showDetails: true,
-  locked: false,
+  accentColor:  'cyan',
+  transparency: 78,
+  showDetails:  true,
+  locked:       false,
 });
+
+/** Migrate old string values → numeric. */
+function migrateTransparency(val: unknown): number {
+  if (typeof val === 'number') return Math.min(98, Math.max(20, val));
+  if (val === 'opaque') return 96;
+  if (val === 'ultra')  return 40;
+  return 78; // 'glass' or unknown
+}
 
 export async function loadSettings(): Promise<void> {
   const store = await load(STORE_PATH);
-  const saved = await store.get<string>('accentColor');
-  // Migrate legacy 'windows' value to 'neutral'
-  settings.accentColor = (saved === 'windows' ? 'neutral' : saved as AccentColor) ?? 'cyan';
-  settings.transparency = (await store.get<Transparency>('transparency')) ?? 'glass';
-  settings.showDetails  = (await store.get<boolean>('showDetails'))  ?? true;
-  settings.locked       = (await store.get<boolean>('locked'))       ?? false;
+  const savedAccent = await store.get<string>('accentColor');
+  settings.accentColor  = (savedAccent === 'windows' ? 'neutral' : savedAccent as AccentColor) ?? 'cyan';
+  settings.transparency = migrateTransparency(await store.get('transparency'));
+  settings.showDetails  = (await store.get<boolean>('showDetails')) ?? true;
+  settings.locked       = (await store.get<boolean>('locked'))      ?? false;
 }
 
 export async function saveSettings(): Promise<void> {
   try {
     const store = await load(STORE_PATH);
-    await store.set('accentColor', settings.accentColor);
+    await store.set('accentColor',  settings.accentColor);
     await store.set('transparency', settings.transparency);
     await store.set('showDetails',  settings.showDetails);
     await store.set('locked',       settings.locked);
@@ -43,17 +52,20 @@ export async function saveSettings(): Promise<void> {
   }
 }
 
-/** Apply current settings to the document (CSS vars + data-attributes). */
+/** Apply current settings to the document. */
 export async function applyToDocument(): Promise<void> {
   const html = document.documentElement;
 
-  if (settings.accentColor === 'windows') {
-    const hex = await invoke<string>('get_accent_color');
-    html.style.setProperty('--windows-accent', hex);
-  }
+  // Theme
   html.dataset.theme = settings.accentColor;
-  html.dataset.transparency = settings.transparency;
 
+  // Transparency — set CSS var directly (no more data-attribute)
+  html.style.setProperty(
+    '--glass-bg',
+    `rgba(10, 10, 10, ${(settings.transparency / 100).toFixed(2)})`
+  );
+
+  // Details
   if (settings.showDetails) {
     delete html.dataset.hideDetails;
   } else {

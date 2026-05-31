@@ -12,7 +12,7 @@
 
   // Local state drives the UI reactivity
   let accentColor  = $state<AccentColor>('cyan');
-  let transparency = $state<Transparency>('glass');
+  let transparency = $state<number>(78);
   let showDetails  = $state(true);
 
   onMount(() => {
@@ -25,8 +25,11 @@
     document.documentElement.dataset.theme = val;
   }
 
-  function applyTransp(val: Transparency) {
-    document.documentElement.dataset.transparency = val;
+  function applyTransp(val: number) {
+    document.documentElement.style.setProperty(
+      '--glass-bg',
+      `rgba(10, 10, 10, ${(val / 100).toFixed(2)})`
+    );
   }
 
   function applyDetails(show: boolean) {
@@ -45,7 +48,7 @@
     await saveSettings();
   }
 
-  async function setTransparency(val: Transparency) {
+  async function setTransparency(val: number) {
     transparency = val;
     settings.transparency = val;
     applyTransp(val);
@@ -72,11 +75,6 @@
     { id: 'neutral', color: '#909090', label: 'Gris Neutre' },
   ];
 
-  const TRANSPARENCIES: { id: Transparency; label: string }[] = [
-    { id: 'opaque', label: 'Opaque' },
-    { id: 'glass',  label: 'Glassmorphism' },
-    { id: 'ultra',  label: 'Ultra-transparent' },
-  ];
 </script>
 
 <div class="settings-panel">
@@ -103,15 +101,22 @@
   <div class="sdivider"></div>
 
   <section>
-    <div class="section-label">Transparence</div>
-    <div class="radio-group">
-      {#each TRANSPARENCIES as t}
-        <button
-          class="radio-btn"
-          class:active={transparency === t.id}
-          onclick={() => setTransparency(t.id)}
-        >{t.label}</button>
-      {/each}
+    <div class="transp-header">
+      <span class="section-label">Transparence</span>
+      <span class="transp-value">{transparency}%</span>
+    </div>
+    <input
+      type="range"
+      class="transp-slider"
+      min="20"
+      max="98"
+      step="1"
+      value={transparency}
+      oninput={(e) => setTransparency(Number(e.currentTarget.value))}
+    />
+    <div class="transp-labels">
+      <span>Transparent</span>
+      <span>Opaque</span>
     </div>
   </section>
 
@@ -208,22 +213,53 @@
     transform: scale(1.2);
   }
 
-  .radio-group { display: flex; flex-direction: column; gap: 2px; }
-
-  .radio-btn {
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.4);
-    font-family: inherit;
-    font-size: 11px;
-    text-align: left;
-    padding: 3px 0;
-    cursor: pointer;
-    transition: color 0.15s;
+  /* ── Transparency slider ── */
+  .transp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
   }
-  .radio-btn.active { color: #e8e8e8; }
-  .radio-btn.active::before { content: '● '; }
-  .radio-btn:not(.active)::before { content: '○ '; }
+  .transp-header .section-label { margin-bottom: 0; }
+  .transp-value {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.45);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .transp-slider {
+    width: 100%;
+    height: 4px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .transp-slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #e8e8e8;
+    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+  }
+  .transp-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+  .transp-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.22);
+    margin-top: 4px;
+  }
 
   .toggle-row {
     background: transparent;
