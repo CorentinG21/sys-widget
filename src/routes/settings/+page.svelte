@@ -87,7 +87,11 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="panel" onmousedown={(e) => { if (e.button === 0) win.startDragging(); }}>
+<div class="panel" onmousedown={(e) => {
+  if (e.button !== 0) return;
+  if ((e.target as HTMLElement).closest('button, input, a, [role="button"]')) return;
+  win.startDragging();
+}}>
 
   <div class="header">
     <span class="title">⚙ Paramètres</span>
