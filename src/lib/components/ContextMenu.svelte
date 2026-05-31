@@ -9,9 +9,11 @@
     visible: boolean;
     updateVersion: string | null;
     onclose: () => void;
+    /** Called before any action that closes/restarts the app so position is saved first. */
+    onsaveposition: () => Promise<void>;
   }
 
-  const { x, y, visible, updateVersion, onclose }: Props = $props();
+  const { x, y, visible, updateVersion, onclose, onsaveposition }: Props = $props();
 
   let version = $state('…');
   let startupEnabled = $state(false);
@@ -32,16 +34,19 @@
 
   async function installUpdate() {
     onclose();
+    await onsaveposition();          // persist position before the installer replaces the app
     await invoke('install_update');
   }
 
   async function restart() {
     onclose();
+    await onsaveposition();          // persist position before restart_app exits immediately
     await invoke('restart_app');
   }
 
   async function quit() {
     onclose();
+    await onsaveposition();          // persist on clean quit too
     await invoke('quit_app');
   }
 </script>

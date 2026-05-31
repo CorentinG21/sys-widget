@@ -76,6 +76,8 @@
     await appWindow.setAlwaysOnBottom(true);
     await appWindow.show();           // reveal only after position is correct
     await appWindow.onMoved(savePosition);
+    // Save on any close (OS kill, Task Manager, etc.) as a safety net
+    await appWindow.onCloseRequested(async () => { await savePosition(); });
     await startListening();
 
     // Listen for update notifications from the Rust backend.
@@ -119,6 +121,7 @@
   visible={menuVisible}
   updateVersion={updateVersion}
   onclose={closeMenu}
+  onsaveposition={savePosition}
 />
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
