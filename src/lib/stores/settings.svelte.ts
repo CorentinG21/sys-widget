@@ -30,13 +30,27 @@ export async function loadSettings(): Promise<void> {
 }
 
 export async function saveAndEmit(): Promise<void> {
-  const store = await load(STORE_PATH);
-  await store.set('accentColor', settings.accentColor);
-  await store.set('transparency', settings.transparency);
-  await store.set('showDetails',  settings.showDetails);
-  await store.set('locked',       settings.locked);
-  await store.save();
-  await emit('settings-changed', { ...settings });
+  // Build payload explicitly — spreading a $state proxy can produce an incomplete object
+  const payload: Settings = {
+    accentColor: settings.accentColor,
+    transparency: settings.transparency,
+    showDetails:  settings.showDetails,
+    locked:       settings.locked,
+  };
+
+  // Emit first so live preview is instant even if the store write is slow
+  await emit('settings-changed', payload);
+
+  try {
+    const store = await load(STORE_PATH);
+    await store.set('accentColor', payload.accentColor);
+    await store.set('transparency', payload.transparency);
+    await store.set('showDetails',  payload.showDetails);
+    await store.set('locked',       payload.locked);
+    await store.save();
+  } catch (e) {
+    console.error('[settings] save failed:', e);
+  }
 }
 
 /** Apply theme + transparency + hide-details to the document. */
