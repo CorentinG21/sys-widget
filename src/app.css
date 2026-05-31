@@ -24,6 +24,7 @@
   --color-warn:    #ffd166;   /* yellow 70–89 % */
   --color-danger:  #ff6b6b;   /* red    ≥ 90 % */
   --color-dl:      #74d7f7;   /* cyan   download < 1 MB/s */
+  --windows-accent: #06d6a0;  /* fallback for Windows theme */
 
   /* ── Glassmorphism surface ── */
   --glass-bg:      rgba(10, 10, 10, 0.78);
@@ -95,7 +96,7 @@ html, body {
   --color-dl:     #ffffff;
 }
 
-/* Windows theme: accent color injected via JS as --windows-accent */
+/* Windows: --windows-accent injected via JS (get_accent_color) */
 [data-theme="windows"] {
   --color-ok: var(--windows-accent, #06d6a0);
   --color-dl: var(--windows-accent, #74d7f7);
