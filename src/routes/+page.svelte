@@ -87,8 +87,11 @@
   onDestroy(() => { stopListening(); });
 
   const ramDetail  = $derived(`${formatBytes(metrics.ram.used)} / ${formatBytes(metrics.ram.total)}`);
+  // Don't show VRAM detail for iGPUs with shared memory (vram_total = 0)
   const vramDetail = $derived(
-    metrics.gpu ? `${formatBytes(metrics.gpu.vram_used)} / ${formatBytes(metrics.gpu.vram_total)}` : ''
+    metrics.gpu && metrics.gpu.vram_total > 0
+      ? `${formatBytes(metrics.gpu.vram_used)} / ${formatBytes(metrics.gpu.vram_total)}`
+      : ''
   );
   const cpuSubExtra = $derived(
     metrics.top_cpu

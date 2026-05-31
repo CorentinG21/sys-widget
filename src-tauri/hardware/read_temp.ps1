@@ -124,12 +124,52 @@ function Get-NvidiaFallback {
     return $null
 }
 
+function Get-WindowsGpuFallback {
+    # Dernier recours : Windows Performance Counters (memes donnees que le Gestionnaire des taches).
+    # Fonctionne pour TOUS les GPU : AMD, Intel iGPU, NVIDIA — sans outil tiers.
+    try {
+        # Charge GPU 3D (toutes les instances = tous les processus cumules)
+        $eng = Get-Counter '\GPU Engine(*engtype_3D*)\Utilization Percentage' -ErrorAction SilentlyContinue
+        if ($null -eq $eng) { return $null }
+
+        $usage = [math]::Min(100, [float]($eng.CounterSamples |
+            Where-Object { $_.CookedValue -ge 0 } |
+            Measure-Object -Property CookedValue -Sum).Sum)
+
+        # VRAM dedieee utilisee (MB)
+        $memUsed = Get-Counter '\GPU Adapter Memory(*)\Dedicated Usage' -ErrorAction SilentlyContinue
+        $vramUsedMb = if ($memUsed) {
+            [float]([math]::Round(($memUsed.CounterSamples |
+                Measure-Object -Property CookedValue -Sum).Sum / 1MB, 1))
+        } else { $null }
+
+        # VRAM totale via WMI (AdapterRAM en bytes, 0 pour iGPU memoire partagee)
+        $vga = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue |
+               Where-Object { $_.CurrentHorizontalResolution -gt 0 } |
+               Select-Object -First 1
+        $vramTotalMb = if ($vga -and $vga.AdapterRAM -gt 0) {
+            [float]([math]::Round($vga.AdapterRAM / 1MB, 1))
+        } else { $null }
+
+        return [ordered]@{
+            usage         = $usage
+            temp          = $null   # non disponible sans API vendeur
+            vram_used_mb  = $vramUsedMb
+            vram_total_mb = $vramTotalMb
+        }
+    } catch { return $null }
+}
+
 try {
     while ($true) {
         $gpuData = Get-GpuData $c.Hardware
-        # LHM ne detecte pas les GPU NVIDIA sur certains systemes -> fallback nvidia-smi
+        # Fallback 1 : nvidia-smi (NVIDIA non detecte par LHM)
         if ($null -eq $gpuData) {
             $gpuData = Get-NvidiaFallback
+        }
+        # Fallback 2 : Windows Perf Counters (AMD iGPU, Intel, tout GPU)
+        if ($null -eq $gpuData) {
+            $gpuData = Get-WindowsGpuFallback
         }
 
         $obj = [ordered]@{
