@@ -1,18 +1,18 @@
 /**
- * Returns a CSS color for a 0–100% usage value.
+ * Returns a CSS color var for a 0–100% usage value.
  *
- * < 70   → green  #06d6a0
- * 70–89  → yellow #ffd166
- * ≥ 90   → red    #ff6b6b
+ * < 70   → green  --color-ok
+ * 70–89  → yellow --color-warn
+ * ≥ 90   → red    --color-danger
  */
 export function thresholdColor(percent: number): string {
-  if (percent >= 90) return '#ff6b6b';
-  if (percent >= 70) return '#ffd166';
-  return '#06d6a0';
+  if (percent >= 90) return 'var(--color-danger)';
+  if (percent >= 70) return 'var(--color-warn)';
+  return 'var(--color-ok)';
 }
 
 /**
- * Returns upload and download colors for a network rate in bytes/s.
+ * Returns upload and download color vars for a network rate in bytes/s.
  *
  * Rate (MB/s)  upload       download
  * < 1          green        cyan
@@ -21,9 +21,9 @@ export function thresholdColor(percent: number): string {
  */
 export function netColors(bytesPerSec: number): { upload: string; download: string } {
   const mbps = bytesPerSec / 1_048_576;
-  if (mbps >= 10) return { upload: '#ff6b6b', download: '#ff6b6b' };
-  if (mbps >= 1)  return { upload: '#ffd166', download: '#ffd166' };
-  return { upload: '#06d6a0', download: '#74d7f7' };
+  if (mbps >= 10) return { upload: 'var(--color-danger)', download: 'var(--color-danger)' };
+  if (mbps >= 1)  return { upload: 'var(--color-warn)',   download: 'var(--color-warn)' };
+  return { upload: 'var(--color-ok)', download: 'var(--color-dl)' };
 }
 
 /**
