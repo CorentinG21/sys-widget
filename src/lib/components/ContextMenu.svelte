@@ -2,6 +2,9 @@
   import { invoke } from '@tauri-apps/api/core';
   import { getVersion } from '@tauri-apps/api/app';
   import { onMount } from 'svelte';
+  import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { PhysicalPosition } from '@tauri-apps/api/dpi';
 
   interface Props {
     x: number;
@@ -44,6 +47,24 @@
     await invoke('restart_app');
   }
 
+  async function openSettings() {
+    onclose();
+    const mainWin = getCurrentWindow();
+    const pos  = await mainWin.outerPosition();
+    const size = await mainWin.outerSize();
+
+    const settingsWin = await WebviewWindow.getByLabel('settings');
+    if (!settingsWin) return;
+
+    const settingsWidth = 260;
+    const gap = 8;
+    const targetX = pos.x + size.width + gap;
+
+    await settingsWin.setPosition(new PhysicalPosition(targetX, pos.y));
+    await settingsWin.show();
+    await settingsWin.setFocus();
+  }
+
   async function quit() {
     onclose();
     await onsaveposition();          // persist on clean quit too
@@ -61,6 +82,12 @@
     <div class="menu-version" role="menuitem" aria-disabled="true">
       SysmonWidget v{version}
     </div>
+
+    <div class="menu-divider"></div>
+
+    <button class="menu-item" role="menuitem" onclick={openSettings}>
+      ⚙ Paramètres…
+    </button>
 
     <div class="menu-divider"></div>
 
