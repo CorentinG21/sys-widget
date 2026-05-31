@@ -1,5 +1,4 @@
 import { load } from '@tauri-apps/plugin-store';
-import { emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
 export type AccentColor = 'cyan' | 'matrix' | 'white' | 'windows';
@@ -38,8 +37,8 @@ export async function saveAndEmit(): Promise<void> {
     locked:       settings.locked,
   };
 
-  // Emit first so live preview is instant even if the store write is slow
-  await emit('settings-changed', payload);
+  // Route through Rust so the event reliably reaches all webviews
+  await invoke('broadcast_settings', payload);
 
   try {
     const store = await load(STORE_PATH);

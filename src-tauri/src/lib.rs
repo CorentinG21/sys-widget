@@ -138,6 +138,25 @@ fn get_accent_color() -> String {
     "#06d6a0".to_string()
 }
 
+/// Payload broadcast to all windows when the user changes a setting.
+#[derive(serde::Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsPayload {
+    pub accent_color: String,
+    pub transparency: String,
+    pub show_details: bool,
+    pub locked: bool,
+}
+
+/// Receive settings from the settings window and broadcast to all webviews.
+/// Using Rust as relay guarantees the event reaches every window.
+#[tauri::command]
+fn broadcast_settings(app: AppHandle, payload: SettingsPayload) {
+    if let Err(e) = app.emit("settings-changed", payload) {
+        eprintln!("[settings] broadcast error: {e}");
+    }
+}
+
 // ─── App setup ───────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -152,6 +171,7 @@ pub fn run() {
             startup_is_registered,
             startup_toggle,
             check_update,
+            broadcast_settings,
             install_update,
             get_accent_color,
         ])
