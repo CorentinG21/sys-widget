@@ -13,12 +13,40 @@
   // Local state drives the UI reactivity
   let accentColor  = $state<AccentColor>('cyan');
   let customColor  = $state('#c084fc');
+  let customHue    = $state(270);  // 0–360
   let transparency = $state<number>(78);
   let showDetails  = $state(true);
+
+  // Convert HSL hue (fixed s=80%, l=62%) → hex string
+  function hueToHex(h: number): string {
+    const s = 0.80, l = 0.62;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n: number) => {
+      const k = (n + h / 30) % 12;
+      const v = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+      return Math.round(255 * v).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+  }
+
+  // Approximate hue from hex (for initializing slider)
+  function hexToHue(hex: string): number {
+    const r = parseInt(hex.slice(1,3), 16) / 255;
+    const g = parseInt(hex.slice(3,5), 16) / 255;
+    const b = parseInt(hex.slice(5,7), 16) / 255;
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    if (max === min) return 0;
+    const d = max - min;
+    let h = max === r ? (g - b) / d + (g < b ? 6 : 0)
+           : max === g ? (b - r) / d + 2
+                       : (r - g) / d + 4;
+    return Math.round(h * 60) % 360;
+  }
 
   onMount(() => {
     accentColor  = settings.accentColor;
     customColor  = settings.customColor;
+    customHue    = hexToHue(settings.customColor);
     transparency = settings.transparency;
     showDetails  = settings.showDetails;
   });
@@ -54,14 +82,14 @@
     await saveSettings();
   }
 
-  async function onCustomColorInput(e: Event) {
-    const hex = (e.currentTarget as HTMLInputElement).value;
-    customColor = hex;
-    settings.customColor = hex;
-    // Switch to custom theme and apply immediately
+  async function onHueInput(e: Event) {
+    const h = Number((e.currentTarget as HTMLInputElement).value);
+    customHue   = h;
+    customColor = hueToHex(h);
+    settings.customColor  = customColor;
+    settings.accentColor  = 'custom';
     accentColor = 'custom';
-    settings.accentColor = 'custom';
-    applyAccent('custom', hex);
+    applyAccent('custom', customColor);
     await saveSettings();
   }
 
@@ -112,24 +140,34 @@
         ></button>
       {/each}
 
-      <!-- Custom color picker -->
-      <label
+      <!-- Custom color swatch — shows gradient or selected color -->
+      <button
         class="swatch swatch-custom"
         class:active={accentColor === 'custom'}
         style="background: {accentColor === 'custom'
           ? customColor
           : 'linear-gradient(135deg, #667eea 0%, #c084fc 50%, #f472b6 100%)'};"
         title="Couleur personnalisée"
-      >
-        <input
-          type="color"
-          class="color-input"
-          value={customColor}
-          oninput={onCustomColorInput}
-        />
-      </label>
+        onclick={() => setAccent('custom')}
+      ></button>
     </div>
   </section>
+
+  <!-- Hue slider — only when custom is active -->
+  {#if accentColor === 'custom'}
+    <div class="hue-row">
+      <input
+        type="range"
+        class="hue-slider"
+        min="0"
+        max="359"
+        step="1"
+        value={customHue}
+        oninput={onHueInput}
+      />
+      <span class="hue-preview" style="background: {customColor};"></span>
+    </div>
+  {/if}
 
   <div class="sdivider"></div>
 
@@ -246,25 +284,54 @@
     transform: scale(1.2);
   }
 
-  /* ── Custom color picker swatch ── */
+  /* ── Custom color swatch + hue slider ── */
   .swatch-custom {
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     cursor: pointer;
-    overflow: hidden;
   }
 
-  .color-input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
+  .hue-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 0;
+    animation: fadeIn 0.15s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  .hue-slider {
+    flex: 1;
+    height: 8px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: linear-gradient(to right,
+      hsl(0,80%,62%), hsl(30,80%,62%), hsl(60,80%,62%),
+      hsl(120,80%,62%), hsl(180,80%,62%), hsl(240,80%,62%),
+      hsl(300,80%,62%), hsl(360,80%,62%));
+    border-radius: 4px;
+    outline: none;
     cursor: pointer;
-    border: none;
-    padding: 0;
+    pointer-events: auto;
+  }
+  .hue-slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.6);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+
+  .hue-preview {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,0.4);
   }
 
 
