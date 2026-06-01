@@ -13,6 +13,8 @@
     "core:window:allow-set-size",
     "core:window:allow-outer-size",
     "core:window:allow-current-monitor",
+    "core:window:allow-available-monitors",
+    "store:default",
     "updater:default"
   ]
 }

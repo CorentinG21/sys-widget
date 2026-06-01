@@ -3,44 +3,44 @@ import { thresholdColor, netColors, formatRate, formatBytes } from './colors';
 
 describe('thresholdColor', () => {
   it('returns green below 70', () => {
-    expect(thresholdColor(0)).toBe('#06d6a0');
-    expect(thresholdColor(69.9)).toBe('#06d6a0');
+    expect(thresholdColor(0)).toBe('var(--color-ok)');
+    expect(thresholdColor(69.9)).toBe('var(--color-ok)');
   });
 
   it('returns yellow from 70 to 89', () => {
-    expect(thresholdColor(70)).toBe('#ffd166');
-    expect(thresholdColor(89.9)).toBe('#ffd166');
+    expect(thresholdColor(70)).toBe('var(--color-warn)');
+    expect(thresholdColor(89.9)).toBe('var(--color-warn)');
   });
 
   it('returns red at 90 and above', () => {
-    expect(thresholdColor(90)).toBe('#ff6b6b');
-    expect(thresholdColor(100)).toBe('#ff6b6b');
+    expect(thresholdColor(90)).toBe('var(--color-danger)');
+    expect(thresholdColor(100)).toBe('var(--color-danger)');
   });
 });
 
 describe('netColors', () => {
   it('returns green/cyan below 1 MB/s', () => {
     const c = netColors(0);
-    expect(c.upload).toBe('#06d6a0');
-    expect(c.download).toBe('#74d7f7');
+    expect(c.upload).toBe('var(--color-ok)');
+    expect(c.download).toBe('var(--color-dl)');
   });
 
   it('returns green/cyan just below 1 MB/s', () => {
     const c = netColors(1_048_575);
-    expect(c.upload).toBe('#06d6a0');
-    expect(c.download).toBe('#74d7f7');
+    expect(c.upload).toBe('var(--color-ok)');
+    expect(c.download).toBe('var(--color-dl)');
   });
 
   it('returns yellow/yellow from 1 to <10 MB/s', () => {
     const c = netColors(1_048_576);       // exactly 1 MB/s
-    expect(c.upload).toBe('#ffd166');
-    expect(c.download).toBe('#ffd166');
+    expect(c.upload).toBe('var(--color-warn)');
+    expect(c.download).toBe('var(--color-warn)');
   });
 
   it('returns red/red at 10 MB/s and above', () => {
     const c = netColors(10 * 1_048_576);
-    expect(c.upload).toBe('#ff6b6b');
-    expect(c.download).toBe('#ff6b6b');
+    expect(c.upload).toBe('var(--color-danger)');
+    expect(c.download).toBe('var(--color-danger)');
   });
 });
 

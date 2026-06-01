@@ -68,7 +68,8 @@ $cargo = [regex]::Replace($cargo, '(?m)^version = "\d+\.\d+\.\d+"', "version = "
 Write-Host "  Cargo.toml updated"
 
 # ── Git: commit + push + tag ──────────────────────────────────────────────────
-git add src-tauri/tauri.conf.json src-tauri/Cargo.toml
+# Stage ALL tracked modified files (not just the version files)
+git add -u
 git commit -m $Message
 git push origin main
 Write-Host "  Pushed to main"

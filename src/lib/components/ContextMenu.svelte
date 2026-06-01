@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { getVersion } from '@tauri-apps/api/app';
+  import { tick } from 'svelte';
   import { onMount } from 'svelte';
   interface Props {
     x: number;
@@ -18,6 +19,9 @@
 
   let version = $state('…');
   let startupEnabled = $state(false);
+  let checkingUpdate = $state(false);
+  let updateMsg = $state<string | null>(null);
+  let installing = $state(false);
 
   onMount(async () => {
     version = await getVersion();
@@ -29,14 +33,31 @@
   }
 
   async function checkUpdate() {
-    onclose();
-    await invoke('check_update');
+    if (checkingUpdate) return;
+    checkingUpdate = true;
+    updateMsg = null;
+    const startedAt = performance.now();
+    await tick();
+    try {
+      const result = await invoke<string | null>('check_update');
+      updateMsg = result ? `v${result} disponible !` : 'Déjà à jour ✓';
+    } catch {
+      updateMsg = 'Erreur de connexion';
+    } finally {
+      const remaining = 500 - (performance.now() - startedAt);
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
+      checkingUpdate = false;
+      setTimeout(() => { updateMsg = null; }, 3000);
+    }
   }
 
   async function installUpdate() {
-    onclose();
-    await onsaveposition();          // persist position before the installer replaces the app
+    installing = true;
+    await onsaveposition();
     await invoke('install_update');
+    installing = false;
   }
 
   async function restart() {
@@ -77,13 +98,19 @@
     <div class="menu-divider"></div>
 
     {#if updateVersion}
-      <button class="menu-item menu-item--update" role="menuitem" onclick={installUpdate}>
-        Mettre à jour v{updateVersion}
+      <button class="menu-item menu-item--update" role="menuitem" onclick={installUpdate} disabled={installing}>
+        {installing ? 'Téléchargement…' : `Mettre à jour v${updateVersion}`}
       </button>
     {/if}
 
-    <button class="menu-item" role="menuitem" onclick={checkUpdate}>
-      Rechercher une mise à jour
+    <button class="menu-item" class:menu-item--muted={!!updateMsg} role="menuitem" onclick={checkUpdate} disabled={checkingUpdate}>
+      {#if checkingUpdate}
+        Vérification…
+      {:else if updateMsg}
+        {updateMsg}
+      {:else}
+        Rechercher une mise à jour
+      {/if}
     </button>
 
     <div class="menu-divider"></div>
@@ -109,12 +136,12 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    z-index: 99;
+    z-index: 9998;
   }
 
   .context-menu {
     position: fixed;
-    z-index: 100;
+    z-index: 9999;
     min-width: 200px;
     background: rgba(18, 18, 18, 0.92);
     backdrop-filter: blur(12px);
@@ -148,7 +175,7 @@
     text-align: left;
     cursor: pointer;
     transition: background 0.15s;
-    pointer-events: auto;
+    pointer-events: auto !important;
   }
 
   .menu-item:hover {
@@ -161,6 +188,11 @@
 
   .menu-item--update:hover {
     background: rgba(255, 209, 102, 0.12);
+  }
+
+  .menu-item--muted {
+    color: rgba(255, 255, 255, 0.45);
+    pointer-events: none;
   }
 
   .menu-item--danger:hover {

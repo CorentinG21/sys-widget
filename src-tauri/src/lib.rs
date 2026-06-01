@@ -82,9 +82,31 @@ async fn check_updates(app: AppHandle) {
 }
 
 /// Trigger a manual update check from the frontend.
+/// Returns Some(version) if an update is available, None if up to date.
+/// Returns an Err string on network/config failure so the frontend can show feedback.
 #[tauri::command]
-async fn check_update(app: AppHandle) {
-    check_updates(app).await;
+async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let version = update.version.clone();
+            eprintln!("[updater] update available: {version}");
+            if let Err(e) = app.emit("update-available", UpdateInfo { version: version.clone() }) {
+                eprintln!("[updater] emit error: {e}");
+            }
+            Ok(Some(version))
+        }
+        Ok(None) => {
+            eprintln!("[updater] up to date");
+            Ok(None)
+        }
+        Err(e) => {
+            eprintln!("[updater] check error: {e}");
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Download and install the available update.

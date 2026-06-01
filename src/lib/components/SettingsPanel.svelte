@@ -121,7 +121,7 @@
 
 </script>
 
-<div class="settings-panel">
+<div class="settings-panel" style="background: rgba(10, 10, 10, {(settings.transparency / 100).toFixed(2)});">
   <div class="panel-header">
     <span class="panel-title">⚙ Paramètres</span>
     <button class="close-btn" onclick={onclose}>✕</button>
@@ -144,9 +144,8 @@
       <button
         class="swatch swatch-custom"
         class:active={accentColor === 'custom'}
-        style="background: {accentColor === 'custom'
-          ? customColor
-          : 'linear-gradient(135deg, #667eea 0%, #c084fc 50%, #f472b6 100%)'};"
+        class:swatch-custom--selected={accentColor === 'custom'}
+        style="background: {accentColor === 'custom' ? customColor : '#2a2a2a'};"
         title="Couleur personnalisée"
         onclick={() => setAccent('custom')}
       ></button>
@@ -217,7 +216,7 @@
 
 <style>
   .settings-panel {
-    background: rgba(12, 12, 12, 0.92);
+    /* background set via inline style — uses settings.transparency directly */
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.09);
@@ -288,6 +287,19 @@
   .swatch-custom {
     position: relative;
     cursor: pointer;
+  }
+
+  /* Pencil icon when no custom color is selected */
+  .swatch-custom:not(.swatch-custom--selected)::after {
+    content: '✏';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1;
   }
 
   .hue-row {

@@ -1,8 +1,8 @@
 <script lang="ts">
   import '../app.css';
   import { onMount, onDestroy } from 'svelte';
-  import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { LogicalSize } from '@tauri-apps/api/dpi';
+  import { availableMonitors, currentMonitor, getCurrentWindow } from '@tauri-apps/api/window';
+  import { LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi';
   import { listen } from '@tauri-apps/api/event';
   import { load } from '@tauri-apps/plugin-store';
 
@@ -33,33 +33,72 @@
 
   let panelOnLeft = $state(false);
 
-  async function openSettings() {
-    const pos = await appWindow.outerPosition();
-    const dpr = window.devicePixelRatio || 1;
-    // Same approach as anchorTo: window.screen gives current monitor dims in CSS px
-    const screenRight = Math.round(window.screen.width * dpr);
-    const expandedW   = Math.round((WIDGET_W + GAP + PANEL_W) * dpr);
+  function pointInMonitor(x: number, y: number, monitor: Awaited<ReturnType<typeof currentMonitor>>) {
+    if (!monitor) return false;
+    const left = monitor.position.x;
+    const top = monitor.position.y;
+    const right = left + monitor.size.width;
+    const bottom = top + monitor.size.height;
+    return x >= left && x < right && y >= top && y < bottom;
+  }
 
-    panelOnLeft = (pos.x + expandedW) > screenRight;
+  // Returns monitor bounds in physical pixels. When the settings panel is open,
+  // currentMonitor() can be skewed by the expanded window crossing screens, so
+  // prefer the monitor containing the widget center.
+  async function getMonitorBounds(widgetX?: number, widgetY?: number) {
+    let monitor = null;
+    if (typeof widgetX === 'number' && typeof widgetY === 'number') {
+      monitor = (await availableMonitors()).find((m) => pointInMonitor(widgetX + 1, widgetY + 1, m)) ?? null;
+    }
+    monitor ??= await currentMonitor();
+    if (monitor) {
+      return {
+        right:   monitor.position.x + monitor.size.width,
+        originX: monitor.position.x,
+        originY: monitor.position.y,
+        width:   monitor.size.width,
+        height:  monitor.size.height,
+        dpr:     monitor.scaleFactor,
+      };
+    }
+    // Fallback if currentMonitor() returns null
+    const dpr = window.devicePixelRatio || 1;
+    return {
+      right:   Math.round(window.screen.width  * dpr),
+      originX: 0,
+      originY: 0,
+      width:   Math.round(window.screen.width  * dpr),
+      height:  Math.round(window.screen.height * dpr),
+      dpr,
+    };
+  }
+
+  async function openSettings() {
+    const pos     = await appWindow.outerPosition();
+    const bounds  = await getMonitorBounds(pos.x, pos.y);
+    const dpr     = bounds.dpr;
+    const expandedW = Math.round((WIDGET_W + GAP + PANEL_W) * dpr);
+
+    panelOnLeft = (pos.x + expandedW) > bounds.right;
     settingsOpen = true;
     await appWindow.setSize(new LogicalSize(WIDGET_W + GAP + PANEL_W, WINDOW_H));
 
     if (panelOnLeft) {
       const shiftPx = Math.round((PANEL_W + GAP) * dpr);
-      await appWindow.setPosition({ type: 'Physical', x: pos.x - shiftPx, y: pos.y });
+      await appWindow.setPosition(new PhysicalPosition(pos.x - shiftPx, pos.y));
     }
   }
 
   async function closeSettings() {
     const pos = await appWindow.outerPosition();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (await getMonitorBounds()).dpr;
 
     settingsOpen = false;
     await appWindow.setSize(new LogicalSize(WIDGET_W, WINDOW_H));
 
     if (panelOnLeft) {
       const shiftPx = Math.round((PANEL_W + GAP) * dpr);
-      await appWindow.setPosition({ type: 'Physical', x: pos.x + shiftPx, y: pos.y });
+      await appWindow.setPosition(new PhysicalPosition(pos.x + shiftPx, pos.y));
     }
   }
 
@@ -104,7 +143,7 @@
       const store = await load(STORE_PATH);
       const pos = await store.get<{ x: number; y: number }>(POS_KEY);
       if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
-        await appWindow.setPosition({ type: 'Physical', x: pos.x, y: pos.y });
+        await appWindow.setPosition(new PhysicalPosition(pos.x, pos.y));
       }
     } catch (e) {
       console.warn('[store] restorePosition failed:', e);
@@ -115,33 +154,38 @@
 
   async function anchorTo(corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') {
     try {
-      const dpr = window.devicePixelRatio || 1;
-      // Use JS screen API — works without extra Tauri capabilities
-      const sw = Math.round(window.screen.width  * dpr);
-      const sh = Math.round(window.screen.height * dpr);
-      // Monitor origin: screenLeft/screenTop give window position in CSS px
-      // On a single monitor the origin is (0,0); on multi-monitor it may differ
-      const originX = Math.round((window.screenLeft ?? 0) >= 0
-        ? 0  // primary monitor
-        : window.screenLeft * dpr);
-      const originY = 0;
+      const pos = await appWindow.outerPosition();
+      const widgetXNow = settingsOpen && panelOnLeft
+        ? pos.x + Math.round((PANEL_W + GAP) * (window.devicePixelRatio || 1))
+        : pos.x;
+      const bounds  = await getMonitorBounds(widgetXNow, pos.y);
+      const dpr     = bounds.dpr;
+      const widgetW = Math.round(WIDGET_W * dpr);
+      const m       = Math.round(12 * dpr);
+      const winH    = Math.round(WINDOW_H * dpr);
 
-      const widgetW = Math.round(320 * dpr);
-      const m       = Math.round(12  * dpr);
+      // Target position of the widget itself (not the full window)
+      let widgetX: number, y: number;
+      if      (corner === 'top-left')    { widgetX = bounds.originX + m;                           y = bounds.originY + m; }
+      else if (corner === 'top-right')   { widgetX = bounds.originX + bounds.width - widgetW - m;  y = bounds.originY + m; }
+      else if (corner === 'bottom-left') { widgetX = bounds.originX + m;                           y = bounds.originY + bounds.height - winH - m; }
+      else                               { widgetX = bounds.originX + bounds.width - widgetW - m;  y = bounds.originY + bounds.height - winH - m; }
 
-      // Estimate window height from outer content — fallback to 400px physical
-      const winH = Math.round(window.outerHeight * dpr) || Math.round(400 * dpr);
+      if (settingsOpen) {
+        // Right corners → panel must be on the left to stay on-screen
+        const newPanelOnLeft = corner === 'top-right' || corner === 'bottom-right';
+        const panelPx = Math.round((PANEL_W + GAP) * dpr);
+        // If panel is on the left, the full window starts to the left of widgetX
+        const windowX = newPanelOnLeft ? widgetX - panelPx : widgetX;
+        await appWindow.setPosition(new PhysicalPosition(windowX, y));
+        panelOnLeft = newPanelOnLeft;
+      } else {
+        await appWindow.setPosition(new PhysicalPosition(widgetX, y));
+      }
 
-      let x: number, y: number;
-      if (corner === 'top-left')          { x = originX + m;               y = originY + m; }
-      else if (corner === 'top-right')    { x = originX + sw - widgetW - m; y = originY + m; }
-      else if (corner === 'bottom-left')  { x = originX + m;               y = originY + sh - winH - m; }
-      else                                { x = originX + sw - widgetW - m; y = originY + sh - winH - m; }
-
-      await appWindow.setPosition({ type: 'Physical', x, y });
-
+      // Always persist the widget position (not the expanded window position)
       const store = await load(STORE_PATH);
-      await store.set(POS_KEY, { x, y });
+      await store.set(POS_KEY, { x: widgetX, y });
       await store.save();
     } catch (e) {
       console.error('[anchor]', e);
@@ -163,6 +207,7 @@
     await listen<{ version: string }>('update-available', (event) => {
       updateVersion = event.payload.version;
     });
+
   });
 
   onDestroy(() => { stopListening(); });

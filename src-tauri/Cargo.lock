@@ -3257,7 +3257,7 @@ dependencies = [
 
 [[package]]
 name = "sysmon-widget"
-version = "2.5.0"
+version = "2.6.3"
 dependencies = [
  "serde",
  "serde_json",

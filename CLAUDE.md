@@ -4,107 +4,113 @@ Widget de monitoring système pour Windows 11 — overlay frameless semi-transpa
 
 ## Stack
 
-- **Python 3.14+** — pas de compilation, juste `pythonw.exe main.py`
-- **PyQt6** — GUI frameless, signal/slot thread-safe
-- **psutil** — CPU %, RAM, disques, réseau
-- **pynvml** — GPU NVIDIA (graceful degradation si absent)
-- **winreg** (stdlib) — réservé pour usage futur
+- **Tauri v2** — shell Rust, fenêtre frameless transparente, toujours en bas (`setAlwaysOnBottom`)
+- **SvelteKit + Svelte 5** — frontend (`$state`, `$derived`, runes)
+- **TypeScript** — typage strict côté frontend
+- **Rust** — backend : collecte métriques, subprocess LHM, startup schtask, updater
+- **sysinfo** (Rust crate) — CPU %, RAM, disques, réseau
+- **LibreHardwareMonitorLib.dll** — températures CPU/GPU via PowerShell subprocess (`hardware/read_temp.ps1`)
 
 ## Architecture
 
 ```
-main.py              → crée QApplication + MonitorThread + DesktopWidget, lance le tout
-monitor.py           → QThread : collecte toutes les 2s, émet data_updated(dict)
-collectors.py        → fonctions stateless de collecte (CPU, GPU, RAM, disques, réseau)
-widget.py            → DesktopWidget : reçoit le signal, met à jour les QLabel
-config.json          → position x/y persistée au drop du drag
+src/
+  routes/+page.svelte       → layout principal, drag, ancrage, ouverture settings
+  lib/
+    components/
+      MetricRow.svelte       → ligne CPU / GPU / RAM avec barre + sparkline
+      DiskRow.svelte         → ligne disque
+      NetworkRow.svelte      → ligne réseau ↑↓
+      Sparkline.svelte       → mini graphe historique CPU/GPU
+      SettingsPanel.svelte   → panel inline (couleur, transparence, ancrage, lock)
+      ContextMenu.svelte     → menu clic droit (settings, update, startup, restart, quit)
+      UpdateBanner.svelte    → bannière mise à jour disponible
+    stores/
+      metrics.svelte.ts      → $state métriques, listen('metrics-updated')
+      settings.svelte.ts     → $state settings, load/save via plugin-store
+    utils/
+      colors.ts              → seuils couleurs, formatBytes
+
+src-tauri/
+  src/
+    main.rs                  → entrée Tauri
+    lib.rs                   → commandes Tauri, boucle métriques 2s, updater
+    monitor.rs               → Monitor : CPU rolling avg, RAM, disques (cache 10s), réseau delta
+    lhm.rs                   → LhmProcess : subprocess PS persistant, températures CPU/GPU
+    models.rs                → structs MetricsPayload, CpuMetrics, GpuMetrics, etc.
+    startup.rs               → schtask register/unregister/toggle via schtasks.exe
+  hardware/
+    read_temp.ps1            → script PS boucle infinie, émet JSON par ligne sur stdout
+    LibreHardwareMonitorLib.dll
+
+release.ps1                  → script de release sémantique (voir ci-dessous)
 ```
 
-## Dépendances
-
-| Dépendance | Utilité | Note |
-|---|---|---|
-| **LibreHardwareMonitorLib.dll** | Températures CPU (AMD Tctl/Tdie, Intel CPU Package) | DLL dans `hardware/`, chargée par `hardware/read_temp.ps1` via PowerShell subprocess — pas de pythonnet, pas de LHM GUI (tâche planifiée LHM supprimée le 2026-05-07) |
-| **pynvml** | GPU NVIDIA | Ignoré silencieusement si absent |
-
-> `requirements.txt` liste les dépendances pip : `psutil>=5.9`, `PyQt6>=6.6`, `pynvml>=11.5`. Pythonnet n'est pas requis — la DLL est chargée via `subprocess` PowerShell natif.
-
-## Lancer le widget
+## Lancer en dev
 
 ```powershell
-# Interactif (avec console)
-python main.py
-
-# Silencieux (sans fenêtre console)
-pythonw.exe main.py
+npm run tauri dev
 ```
 
-> Admin requis (`app.manifest` → `requireAdministrator`). Le widget démarre automatiquement via Task Scheduler — `install_startup.ps1` crée la tâche `SysmonWidget` au logon (script dynamique, détecte l'utilisateur courant automatiquement).
+## Release
 
-## Distribution — Build .exe autonome
+Le script `release.ps1` bumpe la version dans `tauri.conf.json` + `Cargo.toml`, commit, push et tag — ce qui déclenche GitHub Actions pour builder et publier le `.exe`.
 
-Le projet se distribue en un seul `SysmonWidget.exe` via PyInstaller.
-
-### Build local
 ```powershell
-pip install pyinstaller
-pyinstaller sysmon_widget.spec
-# → dist/SysmonWidget.exe
+# Syntaxe
+.\release.ps1 patch "fix: description"   # x.y.Z+1
+.\release.ps1 minor "feat: description"  # x.Y+1.0
+.\release.ps1 major "feat: description"  # X+1.0.0
+
+# Exemples
+.\release.ps1 patch "fix: anchor panel adapts side on right corners + multi-monitor bounds"
+.\release.ps1 minor "feat: nouvelle fonctionnalité"
 ```
 
-### Release automatique (GitHub Actions)
-Chaque tag `v*` déclenche un build sur `windows-latest` et publie le `.exe` dans les GitHub Releases :
-```powershell
-git tag v1.x.x
-git push origin v1.x.x
-```
+> **Ne jamais pusher ni tagger manuellement** — toujours passer par `release.ps1`.
+
 Releases : https://github.com/CorentinG21/sys-widget/releases
-
-### Spec PyInstaller (`sysmon_widget.spec`)
-- One-file bundle
-- Embarque `hardware/read_temp.ps1` + `hardware/LibreHardwareMonitorLib.dll`
-- `uac_admin=True` — manifest requireAdministrator intégré
-- `console=False` — pas de fenêtre console
-
-### Installation sur un autre PC
-1. Télécharger `SysmonWidget.exe` + `install_startup.ps1` depuis les Releases
-2. Placer les deux fichiers dans le même dossier
-3. Lancer `install_startup.ps1` en tant qu'Administrateur
-
-## Points importants pour PyInstaller
-
-- `collectors.py` : utilise `sys._MEIPASS` quand `sys.frozen == True` pour localiser `read_temp.ps1`
-- `widget.py` : `config.json` sauvegardé dans `%APPDATA%\sysmon-widget\` (pas à côté du .exe)
-- `widget.py` `_restart()` : quand frozen, relance `sys.executable` directement sans argument `main.py`
 
 ## Données affichées
 
 | Ligne | Source | Intervalle |
 |---|---|---|
-| CPU % + °C | psutil + LibreHardwareMonitorLib.dll (via PS subprocess) | 2 s |
-| GPU % + °C + VRAM | pynvml | 2 s |
-| RAM % + Go | psutil | 2 s |
-| Disques % + Go | psutil (caché 10 s) | 10 s |
-| Réseau ↑↓ MB/s | psutil delta | 2 s |
+| CPU % + °C | sysinfo + LHM DLL (via PS subprocess) | 2 s |
+| GPU % + °C + VRAM | LHM DLL (via PS subprocess) | 2 s |
+| RAM % + Go | sysinfo | 2 s |
+| Disques % + Go | sysinfo (caché 10 s) | 10 s |
+| Réseau ↑↓ MB/s | sysinfo delta | 2 s |
+| Top process CPU | sysinfo | 2 s |
 
-## Fonctionnalités du widget
+## Fonctionnalités
 
-- **Drag & drop** : clic gauche + glisser pour repositionner, position sauvegardée dans `config.json` au mouseRelease
-- **Menu contextuel** (clic droit) : `Redémarrer` (relaunch `main.py` via subprocess) et `Quitter`
-- **Taille dynamique** : `adjustSize()` appelé à chaque update — le widget s'adapte au nombre de disques détectés
+- **Drag & drop** : clic gauche + glisser, position sauvegardée dans `config.json` (plugin-store, `%APPDATA%`)
+- **Verrouillage** : option "Verrouiller la position" dans settings
+- **Menu contextuel** (clic droit) : Settings, Rechercher mise à jour, Démarrer avec Windows, Redémarrer, Quitter
+- **Panel settings** (inline, s'ouvre à gauche ou droite selon position) :
+  - Couleur accent : Cyan Néon / Vert Matrix / Blanc Épuré / Couleur libre (hue slider)
+  - Transparence : slider continu 20–98%
+  - Afficher/masquer les détails
+  - Verrouiller la position
+  - Ancrage aux 4 coins (adapte automatiquement le côté du panel)
+- **Updater** : check auto 30s après lancement + toutes les heures, install depuis le menu
+- **Startup** : toggle tâche planifiée Windows (`SysmonWidget`) depuis le menu contextuel
 
-## Températures CPU (`read_temp.ps1`)
+## Températures (`read_temp.ps1` + `lhm.rs`)
 
-Le script PS tourne en boucle persistante (processus fils de `collectors.py`), envoie une valeur par ligne sur stdout toutes les 2 s.
+Le script PS tourne en boucle persistante (processus fils géré par `LhmProcess`), émet un objet JSON par ligne sur stdout toutes les 2 s. `lhm.rs` lit le dernier JSON valide reçu.
 
-Priorité des sondes :
+Priorité des sondes CPU :
 1. `Tctl` ou `CPU Package` (AMD / Intel principal)
-2. Fallback : n'importe quel capteur dont le nom contient `CPU` ou `Core`
-3. Si aucune sonde : émet `null` (affiché comme absent dans le widget)
+2. Fallback : n'importe quel capteur contenant `CPU` ou `Core`
+3. Si aucune sonde : `null`
 
-## Modifier le polling
+## Positionnement multi-écran
 
-`monitor.py` ligne 9 : `MonitorThread(interval=2.0)` — changer `2.0` pour ajuster.
+`openSettings()` et `anchorTo()` utilisent `currentMonitor()` de l'API Tauri v2 (bounds physiques réelles du moniteur courant) — contrairement à `window.screen` qui renvoie toujours le moniteur principal sous WebView2.
+
+Ancrage droite (↗ / ↘) : le panel settings est automatiquement placé à **gauche** du widget.
+Ancrage gauche (↖ / ↙) : le panel settings est à **droite**.
 
 ## Couleur des barres (CPU / GPU / RAM / Disques)
 
@@ -114,10 +120,14 @@ Priorité des sondes :
 | 70–89 % | Jaune `#ffd166` |
 | ≥ 90 % | Rouge `#ff6b6b` |
 
-## Couleur réseau (seuils MB/s, pas %)
+## Couleur réseau (seuils MB/s)
 
 | Seuil | Upload | Download |
 |---|---|---|
 | < 1 MB/s | Vert `#06d6a0` | Cyan `#74d7f7` |
 | 1–9 MB/s | Jaune `#ffd166` | Jaune `#ffd166` |
 | ≥ 10 MB/s | Rouge `#ff6b6b` | Rouge `#ff6b6b` |
+
+## Modifier le polling
+
+`src-tauri/src/lib.rs` : `Duration::from_secs(2)` dans la boucle métriques.
