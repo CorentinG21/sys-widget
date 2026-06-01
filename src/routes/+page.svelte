@@ -4,6 +4,7 @@
   import { availableMonitors, currentMonitor, getCurrentWindow } from '@tauri-apps/api/window';
   import { LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi';
   import { listen } from '@tauri-apps/api/event';
+  import { invoke } from '@tauri-apps/api/core';
   import { load } from '@tauri-apps/plugin-store';
 
   import { metrics, cpuHistory, gpuHistory, startListening, stopListening } from '$lib/stores/metrics.svelte';
@@ -203,6 +204,8 @@
     await startListening();
     await loadSettings();
     await applyToDocument();
+    // Apply saved poll interval to the Rust loop
+    await invoke('set_poll_interval', { ms: settings.pollInterval * 1000 });
 
     await listen<{ version: string }>('update-available', (event) => {
       updateVersion = event.payload.version;
@@ -235,10 +238,9 @@
     if (target.closest('button, input, a, [role="button"]')) return;
     dragging = true;
     appWindow.startDragging();
-  }
-
-  function onWidgetMouseUp() {
-    dragging = false;
+    // startDragging() hands off to the OS — mouseup never fires in the webview.
+    // Reset the visual after a short delay so the outline doesn't get stuck.
+    setTimeout(() => { dragging = false; }, 120);
   }
 </script>
 
@@ -264,7 +266,6 @@
     role="application"
     aria-label="SysmonWidget"
     onmousedown={onWidgetMouseDown}
-    onmouseup={onWidgetMouseUp}
     oncontextmenu={onContextMenu}
   >
 
@@ -272,26 +273,33 @@
       <UpdateBanner version={updateVersion} />
     {/if}
 
-    <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} subExtra={cpuSubExtra} />
-
-    {#if metrics.gpu}
-      <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
-    {:else}
-      <MetricRow label="GPU" percent={0} na={true} />
+    {#if settings.showCpu}
+      <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} subExtra={cpuSubExtra} />
     {/if}
 
-    <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />
+    {#if settings.showGpu}
+      {#if metrics.gpu}
+        <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
+      {:else}
+        <MetricRow label="GPU" percent={0} na={true} />
+      {/if}
+    {/if}
 
-    {#if metrics.disks.length > 0}
+    {#if settings.showRam}
+      <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />
+    {/if}
+
+    {#if settings.showDisks && metrics.disks.length > 0}
       <div class="divider"></div>
       {#each metrics.disks as disk (disk.mount)}
         <DiskRow {disk} />
       {/each}
     {/if}
 
-    <div class="divider"></div>
-
-    <NetworkRow network={metrics.network} />
+    {#if settings.showNetwork}
+      <div class="divider"></div>
+      <NetworkRow network={metrics.network} />
+    {/if}
 
   </div>
 

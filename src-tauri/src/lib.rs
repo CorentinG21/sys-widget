@@ -4,11 +4,12 @@ mod monitor;
 mod startup;
 
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
-use tokio::time::{self, Instant};
+use tauri::{AppHandle, Emitter, Manager, State};
+use tokio::time;
 
 // Tauri manages its own tokio runtime; we import tokio::time directly
 // because lib.rs uses interval_at (which needs tokio::time::Instant).
@@ -20,6 +21,14 @@ use models::MetricsPayload;
 use monitor::Monitor;
 
 // ─── Commands ────────────────────────────────────────────────────────────────
+
+/// Update the metrics polling interval at runtime.
+/// `ms` is clamped to [500, 10_000] ms.
+#[tauri::command]
+fn set_poll_interval(state: State<Arc<AtomicU64>>, ms: u64) {
+    let clamped = ms.clamp(500, 10_000);
+    state.store(clamped, Ordering::Relaxed);
+}
 
 #[tauri::command]
 fn restart_app(app: AppHandle) {
@@ -132,6 +141,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            set_poll_interval,
             restart_app,
             quit_app,
             startup_is_registered,
@@ -168,15 +178,18 @@ pub fn run() {
             ));
             let lhm_for_cleanup = Arc::clone(&lhm);
 
-            // ── Metrics loop (2 s) ──────────────────────────────────────────
+            // ── Poll interval state (default 2 s, changeable at runtime) ───
+            let poll_ms = Arc::new(AtomicU64::new(2_000));
+            app.manage(poll_ms.clone());
+
+            // ── Metrics loop ────────────────────────────────────────────────
             let mut monitor = Monitor::new();
             let app_metrics = app_handle.clone();
 
             tauri::async_runtime::spawn(async move {
-                let start = Instant::now() + Duration::from_secs(2);
-                let mut ticker = time::interval_at(start, Duration::from_secs(2));
+                // Initial delay before first tick
+                time::sleep(Duration::from_millis(poll_ms.load(Ordering::Relaxed))).await;
                 loop {
-                    ticker.tick().await;
 
                     let (cpu_percent, ram, disks, network, top_cpu) = monitor.collect();
                     let lhm_data = lhm
@@ -200,6 +213,9 @@ pub fn run() {
                     if let Err(e) = app_metrics.emit("metrics-updated", &payload) {
                         eprintln!("[metrics] emit error: {e}");
                     }
+
+                    // Sleep for the current interval before next tick
+                    time::sleep(Duration::from_millis(poll_ms.load(Ordering::Relaxed))).await;
                 }
             });
 

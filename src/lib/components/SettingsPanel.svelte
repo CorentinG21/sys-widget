@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { load } from '@tauri-apps/plugin-store';
+  import { invoke } from '@tauri-apps/api/core';
   import { settings, saveSettings } from '$lib/stores/settings.svelte';
   import type { AccentColor, Transparency } from '$lib/stores/settings.svelte';
 
@@ -112,6 +113,17 @@
     await saveSettings();
   }
 
+  async function toggleRow(key: 'showCpu' | 'showGpu' | 'showRam' | 'showDisks' | 'showNetwork') {
+    (settings as Record<string, unknown>)[key] = !settings[key];
+    await saveSettings();
+  }
+
+  async function setPollInterval(val: 1 | 2 | 5) {
+    settings.pollInterval = val;
+    await invoke('set_poll_interval', { ms: val * 1000 });
+    await saveSettings();
+  }
+
 
   const ACCENTS: { id: AccentColor; color: string; label: string }[] = [
     { id: 'cyan',   color: '#06d6a0', label: 'Cyan Néon' },
@@ -199,6 +211,42 @@
     <button class="toggle-row" onclick={toggleLocked}>
       {settings.locked ? '✓' : '○'} Verrouiller la position
     </button>
+  </section>
+
+  <div class="sdivider"></div>
+
+  <section>
+    <div class="section-label">Lignes visibles</div>
+    <div class="rows-grid">
+      {#each [
+        { key: 'showCpu',     label: 'CPU'    },
+        { key: 'showGpu',     label: 'GPU'    },
+        { key: 'showRam',     label: 'RAM'    },
+        { key: 'showDisks',   label: 'Disques'},
+        { key: 'showNetwork', label: 'Réseau' },
+      ] as row}
+        <button
+          class="row-toggle"
+          class:active={settings[row.key as keyof typeof settings]}
+          onclick={() => toggleRow(row.key as 'showCpu' | 'showGpu' | 'showRam' | 'showDisks' | 'showNetwork')}
+        >{row.label}</button>
+      {/each}
+    </div>
+  </section>
+
+  <div class="sdivider"></div>
+
+  <section>
+    <div class="section-label">Polling</div>
+    <div class="poll-grid">
+      {#each ([1, 2, 5] as const) as s}
+        <button
+          class="poll-btn"
+          class:active={settings.pollInterval === s}
+          onclick={() => setPollInterval(s)}
+        >{s}s</button>
+      {/each}
+    </div>
   </section>
 
   <div class="sdivider"></div>
@@ -408,6 +456,50 @@
     transition: color 0.15s;
   }
   .toggle-row:hover { color: #e8e8e8; }
+
+  /* ── Rows visibility ── */
+  .rows-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  .row-toggle {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: inherit;
+    font-size: 10px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .row-toggle.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #e8e8e8;
+  }
+  .row-toggle:hover { background: rgba(255, 255, 255, 0.08); color: #e8e8e8; }
+
+  /* ── Poll interval ── */
+  .poll-grid { display: flex; gap: 4px; }
+
+  .poll-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 5px 0;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .poll-btn.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #e8e8e8;
+  }
+  .poll-btn:hover { background: rgba(255, 255, 255, 0.08); color: #e8e8e8; }
 
   .anchor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 

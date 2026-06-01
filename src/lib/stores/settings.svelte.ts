@@ -12,6 +12,14 @@ export interface Settings {
   transparency: Transparency;  // 20–98
   showDetails:  boolean;
   locked:       boolean;
+  // Visible rows
+  showCpu:      boolean;
+  showGpu:      boolean;
+  showRam:      boolean;
+  showDisks:    boolean;
+  showNetwork:  boolean;
+  // Polling interval in seconds
+  pollInterval: 1 | 2 | 5;
 }
 
 const STORE_PATH = 'config.json';
@@ -22,6 +30,12 @@ export const settings = $state<Settings>({
   transparency: 78,
   showDetails:  true,
   locked:       false,
+  showCpu:      true,
+  showGpu:      true,
+  showRam:      true,
+  showDisks:    true,
+  showNetwork:  true,
+  pollInterval: 2,
 });
 
 /** Migrate old string values → numeric. */
@@ -43,6 +57,14 @@ export async function loadSettings(): Promise<void> {
   settings.transparency = migrateTransparency(await store.get('transparency'));
   settings.showDetails  = (await store.get<boolean>('showDetails')) ?? true;
   settings.locked       = (await store.get<boolean>('locked'))      ?? false;
+  settings.showCpu      = (await store.get<boolean>('showCpu'))     ?? true;
+  settings.showGpu      = (await store.get<boolean>('showGpu'))     ?? true;
+  settings.showRam      = (await store.get<boolean>('showRam'))     ?? true;
+  settings.showDisks    = (await store.get<boolean>('showDisks'))   ?? true;
+  settings.showNetwork  = (await store.get<boolean>('showNetwork')) ?? true;
+  const savedInterval   = await store.get<number>('pollInterval');
+  settings.pollInterval = ([1, 2, 5].includes(savedInterval as number)
+    ? savedInterval : 2) as 1 | 2 | 5;
 }
 
 export async function saveSettings(): Promise<void> {
@@ -53,6 +75,12 @@ export async function saveSettings(): Promise<void> {
     await store.set('transparency', settings.transparency);
     await store.set('showDetails',  settings.showDetails);
     await store.set('locked',       settings.locked);
+    await store.set('showCpu',      settings.showCpu);
+    await store.set('showGpu',      settings.showGpu);
+    await store.set('showRam',      settings.showRam);
+    await store.set('showDisks',    settings.showDisks);
+    await store.set('showNetwork',  settings.showNetwork);
+    await store.set('pollInterval', settings.pollInterval);
     await store.save();
   } catch (e) {
     console.error('[settings] save failed:', e);
