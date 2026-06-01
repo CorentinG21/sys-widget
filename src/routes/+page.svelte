@@ -226,12 +226,19 @@
 
   // ── Drag ─────────────────────────────────────────────────────────────────
 
+  let dragging = $state(false);
+
   function onWidgetMouseDown(e: MouseEvent) {
     if (e.button !== 0) return;
     if (settings.locked) return;
     const target = e.target as HTMLElement;
     if (target.closest('button, input, a, [role="button"]')) return;
+    dragging = true;
     appWindow.startDragging();
+  }
+
+  function onWidgetMouseUp() {
+    dragging = false;
   }
 </script>
 
@@ -253,9 +260,11 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="widget"
+    class:dragging={dragging}
     role="application"
     aria-label="SysmonWidget"
     onmousedown={onWidgetMouseDown}
+    onmouseup={onWidgetMouseUp}
     oncontextmenu={onContextMenu}
   >
 
