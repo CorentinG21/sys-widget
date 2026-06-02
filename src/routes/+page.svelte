@@ -215,6 +215,10 @@
 
   onDestroy(() => { stopListening(); });
 
+  // True if at least one "top" row (CPU/GPU/RAM) is visible
+  const hasTopRows  = $derived(settings.showCpu || settings.showGpu || settings.showRam);
+  const hasDiskRows = $derived(settings.showDisks && metrics.disks.length > 0);
+
   const ramDetail  = $derived(`${formatBytes(metrics.ram.used)} / ${formatBytes(metrics.ram.total)}`);
   const vramDetail = $derived(
     metrics.gpu && metrics.gpu.vram_total > 0
@@ -289,15 +293,15 @@
       <MetricRow label="RAM" percent={metrics.ram.percent} detail={ramDetail} />
     {/if}
 
-    {#if settings.showDisks && metrics.disks.length > 0}
-      <div class="divider"></div>
+    {#if hasDiskRows}
+      {#if hasTopRows}<div class="divider"></div>{/if}
       {#each metrics.disks as disk (disk.mount)}
         <DiskRow {disk} />
       {/each}
     {/if}
 
     {#if settings.showNetwork}
-      <div class="divider"></div>
+      {#if hasTopRows || hasDiskRows}<div class="divider"></div>{/if}
       <NetworkRow network={metrics.network} />
     {/if}
 
