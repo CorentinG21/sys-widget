@@ -22,6 +22,8 @@ export interface Settings {
   pollInterval: 1 | 2 | 5;
   // Window layer
   alwaysOnTop: boolean;
+  // Temperature unit
+  tempUnit: 'C' | 'F' | 'K';
 }
 
 const STORE_PATH = 'config.json';
@@ -39,6 +41,7 @@ export const settings = $state<Settings>({
   showNetwork:  true,
   pollInterval: 2,
   alwaysOnTop: false,
+  tempUnit: 'C',
 });
 
 /** Migrate old string values → numeric. */
@@ -69,6 +72,8 @@ export async function loadSettings(): Promise<void> {
   settings.pollInterval = ([1, 2, 5].includes(savedInterval as number)
     ? savedInterval : 2) as 1 | 2 | 5;
   settings.alwaysOnTop  = (await store.get<boolean>('alwaysOnTop')) ?? false;
+  const savedUnit = await store.get<string>('tempUnit');
+  settings.tempUnit = (['C', 'F', 'K'].includes(savedUnit as string) ? savedUnit : 'C') as 'C' | 'F' | 'K';
 }
 
 export async function saveSettings(): Promise<void> {
@@ -86,6 +91,7 @@ export async function saveSettings(): Promise<void> {
     await store.set('showNetwork',  settings.showNetwork);
     await store.set('pollInterval', settings.pollInterval);
     await store.set('alwaysOnTop',  settings.alwaysOnTop);
+    await store.set('tempUnit',     settings.tempUnit);
     await store.save();
   } catch (e) {
     console.error('[settings] save failed:', e);

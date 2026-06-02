@@ -9,6 +9,9 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Rust build artifacts — NEVER commit (very large)
+src-tauri/target/
+
 # Tauri signing keys — NEVER commit
 *.key
 *.key.pub

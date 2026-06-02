@@ -73,6 +73,7 @@ Accessible via **Clic droit → Paramètres** :
 - **Afficher les détails** — Affiche/masque les sous-lignes (températures, Go RAM…)
 - **Verrouiller la position** — Empêche les déplacements accidentels
 - **Toujours au premier plan** — Le widget passe au-dessus de toutes les fenêtres (désactivé par défaut)
+- **Unité de température** — Choisissez entre °C, °F et K
 - **Lignes visibles** — Activez/désactivez chaque métrique individuellement
 - **Polling** — Fréquence de rafraîchissement : 1s, 2s ou 5s
 - **Ancrage rapide** — Colle le widget dans un coin de l'écran en un clic

@@ -133,6 +133,11 @@
     await saveSettings();
   }
 
+  async function setTempUnit(unit: 'C' | 'F' | 'K') {
+    settings.tempUnit = unit;
+    await saveSettings();
+  }
+
   async function setPollInterval(val: 1 | 2 | 5) {
     settings.pollInterval = val;
     await invoke('set_poll_interval', { ms: val * 1000 });
@@ -248,6 +253,21 @@
           class:active={settings[row.key as keyof typeof settings]}
           onclick={() => toggleRow(row.key as 'showCpu' | 'showGpu' | 'showRam' | 'showDisks' | 'showNetwork')}
         >{row.label}</button>
+      {/each}
+    </div>
+  </section>
+
+  <div class="sdivider"></div>
+
+  <section>
+    <div class="section-label">Températures</div>
+    <div class="poll-grid">
+      {#each (['C', 'F', 'K'] as const) as unit}
+        <button
+          class="poll-btn"
+          class:active={settings.tempUnit === unit}
+          onclick={() => setTempUnit(unit)}
+        >°{unit}</button>
       {/each}
     </div>
   </section>

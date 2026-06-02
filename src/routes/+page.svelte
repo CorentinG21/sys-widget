@@ -228,6 +228,20 @@
 
   onDestroy(() => { stopListening(); });
 
+  // ── Temperature conversion ────────────────────────────────────────────────
+
+  function convertTemp(celsius: number | null | undefined): number | null {
+    if (celsius == null) return null;
+    if (settings.tempUnit === 'F') return Math.round(celsius * 9 / 5 + 32);
+    if (settings.tempUnit === 'K') return Math.round(celsius + 273.15);
+    return celsius;
+  }
+
+  const tempSuffix = $derived(
+    settings.tempUnit === 'F' ? '°F' :
+    settings.tempUnit === 'K' ? ' K' : '°C'
+  );
+
   // True if at least one "top" row (CPU/GPU/RAM) is visible
   const hasTopRows  = $derived(settings.showCpu || settings.showGpu || settings.showRam);
   const hasDiskRows = $derived(settings.showDisks && metrics.disks.length > 0);
@@ -291,12 +305,12 @@
     {/if}
 
     {#if settings.showCpu}
-      <MetricRow label="CPU" percent={metrics.cpu.percent} temp={metrics.cpu.temp} history={cpuHistory} subExtra={cpuSubExtra} />
+      <MetricRow label="CPU" percent={metrics.cpu.percent} temp={convertTemp(metrics.cpu.temp)} tempSuffix={tempSuffix} history={cpuHistory} subExtra={cpuSubExtra} />
     {/if}
 
     {#if settings.showGpu}
       {#if metrics.gpu}
-        <MetricRow label="GPU" percent={metrics.gpu.percent} temp={metrics.gpu.temp} detail={vramDetail} history={gpuHistory} />
+        <MetricRow label="GPU" percent={metrics.gpu.percent} temp={convertTemp(metrics.gpu.temp)} tempSuffix={tempSuffix} detail={vramDetail} history={gpuHistory} />
       {:else}
         <MetricRow label="GPU" percent={0} na={true} />
       {/if}
