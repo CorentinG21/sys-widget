@@ -68,8 +68,8 @@ $cargo = [regex]::Replace($cargo, '(?m)^version = "\d+\.\d+\.\d+"', "version = "
 Write-Host "  Cargo.toml updated"
 
 # ── Git: commit + push + tag ──────────────────────────────────────────────────
-# Stage ALL tracked modified files (not just the version files)
-git add -u
+# Stage all modified tracked files + new untracked files (respects .gitignore)
+git add -A
 git commit -m $Message
 git push origin main
 Write-Host "  Pushed to main"

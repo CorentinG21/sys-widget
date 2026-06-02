@@ -182,7 +182,7 @@ pub fn run() {
                 .build()?;
 
             TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(tauri::include_image!("icons/tray-icon.ico"))
                 .tooltip("SysmonWidget")
                 .menu(&tray_menu)
                 .on_menu_event(|app, event| {
