@@ -15,6 +15,7 @@
     "core:window:allow-current-monitor",
     "core:window:allow-available-monitors",
     "store:default",
+    "core:tray:default",
     "updater:default"
   ]
 }

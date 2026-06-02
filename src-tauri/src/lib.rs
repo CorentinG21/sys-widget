@@ -9,6 +9,8 @@ use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
 use tokio::time;
 
 // Tauri manages its own tokio runtime; we import tokio::time directly
@@ -151,6 +153,57 @@ pub fn run() {
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
+
+            // ── System tray ─────────────────────────────────────────────────
+            let version = app.package_info().version.to_string();
+            let version_item = MenuItemBuilder::new(format!("SysmonWidget v{version}"))
+                .id("version")
+                .enabled(false)
+                .build(app)?;
+            let sep1         = PredefinedMenuItem::separator(app)?;
+            let update_item  = MenuItemBuilder::new("Rechercher une mise à jour")
+                .id("check_update")
+                .build(app)?;
+            let sep2         = PredefinedMenuItem::separator(app)?;
+            let restart_item = MenuItemBuilder::new("Redémarrer")
+                .id("restart")
+                .build(app)?;
+            let quit_item    = MenuItemBuilder::new("Quitter")
+                .id("quit")
+                .build(app)?;
+
+            let tray_menu = MenuBuilder::new(app)
+                .item(&version_item)
+                .item(&sep1)
+                .item(&update_item)
+                .item(&sep2)
+                .item(&restart_item)
+                .item(&quit_item)
+                .build()?;
+
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("SysmonWidget")
+                .menu(&tray_menu)
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "check_update" => {
+                            let app = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                check_updates(app).await;
+                            });
+                        }
+                        "restart" => {
+                            if let Ok(exe) = std::env::current_exe() {
+                                let _ = std::process::Command::new(exe).spawn();
+                            }
+                            app.exit(0);
+                        }
+                        "quit" => app.exit(0),
+                        _ => {}
+                    }
+                })
+                .build(app)?;
 
             // ── LHM subprocess ──────────────────────────────────────────────
             let prod_path = app_handle
