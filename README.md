@@ -116,23 +116,6 @@ Vous pouvez aussi déclencher une vérification via **Clic droit → Rechercher 
 | **Capteurs thermiques** | LibreHardwareMonitor (subprocess PowerShell sécurisé) |
 | **Build / Release** | GitHub Actions · tauri-action |
 
----
-
-## 🤝 Contribuer
-
-Les contributions sont les bienvenues !
-
-1. Fork le projet
-2. Crée ta branche (`git checkout -b feature/MaFeature`)
-3. Commit tes changements (`git commit -m 'feat: MaFeature'`)
-4. Push sur la branche (`git push origin feature/MaFeature`)
-5. Ouvre une Pull Request
-
----
-
-## 📝 Licence
-
-Distribué sous licence **MIT**.
 
 ---
 
