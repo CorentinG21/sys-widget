@@ -113,8 +113,23 @@
     await saveSettings();
   }
 
+  async function toggleAlwaysOnTop() {
+    settings.alwaysOnTop = !settings.alwaysOnTop;
+    await saveSettings();
+    // Apply immediately via Tauri window API
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const win = getCurrentWindow();
+    if (settings.alwaysOnTop) {
+      await win.setAlwaysOnTop(true);
+      await win.setAlwaysOnBottom(false);
+    } else {
+      await win.setAlwaysOnTop(false);
+      await win.setAlwaysOnBottom(true);
+    }
+  }
+
   async function toggleRow(key: 'showCpu' | 'showGpu' | 'showRam' | 'showDisks' | 'showNetwork') {
-    (settings as Record<string, unknown>)[key] = !settings[key];
+    (settings as unknown as Record<string, unknown>)[key] = !settings[key];
     await saveSettings();
   }
 
@@ -210,6 +225,9 @@
     </button>
     <button class="toggle-row" onclick={toggleLocked}>
       {settings.locked ? '✓' : '○'} Verrouiller la position
+    </button>
+    <button class="toggle-row" onclick={toggleAlwaysOnTop}>
+      {settings.alwaysOnTop ? '✓' : '○'} Toujours au premier plan
     </button>
   </section>
 

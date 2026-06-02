@@ -193,11 +193,22 @@
     }
   }
 
+  // ── Window layer ─────────────────────────────────────────────────────────
+
+  async function applyWindowLayer() {
+    if (settings.alwaysOnTop) {
+      await appWindow.setAlwaysOnTop(true);
+      await appWindow.setAlwaysOnBottom(false);
+    } else {
+      await appWindow.setAlwaysOnTop(false);
+      await appWindow.setAlwaysOnBottom(true);
+    }
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   onMount(async () => {
     await restorePosition();
-    await appWindow.setAlwaysOnBottom(true);
     await appWindow.show();
     await appWindow.onMoved(savePosition);
     await appWindow.onCloseRequested(async () => { await savePosition(); });
@@ -206,6 +217,8 @@
     await applyToDocument();
     // Apply saved poll interval to the Rust loop
     await invoke('set_poll_interval', { ms: settings.pollInterval * 1000 });
+    // Apply saved window layer
+    await applyWindowLayer();
 
     await listen<{ version: string }>('update-available', (event) => {
       updateVersion = event.payload.version;

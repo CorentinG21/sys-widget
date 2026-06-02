@@ -20,6 +20,8 @@ export interface Settings {
   showNetwork:  boolean;
   // Polling interval in seconds
   pollInterval: 1 | 2 | 5;
+  // Window layer
+  alwaysOnTop: boolean;
 }
 
 const STORE_PATH = 'config.json';
@@ -36,6 +38,7 @@ export const settings = $state<Settings>({
   showDisks:    true,
   showNetwork:  true,
   pollInterval: 2,
+  alwaysOnTop: false,
 });
 
 /** Migrate old string values → numeric. */
@@ -65,6 +68,7 @@ export async function loadSettings(): Promise<void> {
   const savedInterval   = await store.get<number>('pollInterval');
   settings.pollInterval = ([1, 2, 5].includes(savedInterval as number)
     ? savedInterval : 2) as 1 | 2 | 5;
+  settings.alwaysOnTop  = (await store.get<boolean>('alwaysOnTop')) ?? false;
 }
 
 export async function saveSettings(): Promise<void> {
@@ -81,6 +85,7 @@ export async function saveSettings(): Promise<void> {
     await store.set('showDisks',    settings.showDisks);
     await store.set('showNetwork',  settings.showNetwork);
     await store.set('pollInterval', settings.pollInterval);
+    await store.set('alwaysOnTop',  settings.alwaysOnTop);
     await store.save();
   } catch (e) {
     console.error('[settings] save failed:', e);
