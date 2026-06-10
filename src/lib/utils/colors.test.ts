@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { thresholdColor, netColors, formatRate, formatBytes } from './colors';
+import { thresholdColor, netColors, formatRate, formatBytes, latencyColor } from './colors';
 
 describe('thresholdColor', () => {
   it('returns green below 70', () => {
@@ -63,6 +63,25 @@ describe('formatRate', () => {
 
   it('formats exactly 1 KB/s', () => {
     expect(formatRate(1_024)).toBe('1.0 KB/s');
+  });
+});
+
+describe('latencyColor', () => {
+  it('returns ok color below 30ms', () => {
+    expect(latencyColor(0)).toBe('var(--color-ok)');
+    expect(latencyColor(12)).toBe('var(--color-ok)');
+    expect(latencyColor(29)).toBe('var(--color-ok)');
+  });
+
+  it('returns warn color between 30ms and 100ms', () => {
+    expect(latencyColor(30)).toBe('var(--color-warn)');
+    expect(latencyColor(65)).toBe('var(--color-warn)');
+    expect(latencyColor(100)).toBe('var(--color-warn)');
+  });
+
+  it('returns danger color above 100ms', () => {
+    expect(latencyColor(101)).toBe('var(--color-danger)');
+    expect(latencyColor(500)).toBe('var(--color-danger)');
   });
 });
 

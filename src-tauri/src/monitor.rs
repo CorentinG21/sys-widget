@@ -209,6 +209,11 @@ fn collect_disks(disks: &Disks) -> Vec<DiskInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::NetworkMetrics;
+
+    fn no_latency() -> Arc<Mutex<Option<u32>>> {
+        Arc::new(Mutex::new(None))
+    }
 
     #[test]
     fn monitor_new_does_not_panic() {
@@ -218,14 +223,14 @@ mod tests {
     #[test]
     fn collect_returns_valid_cpu_percent() {
         let mut m = Monitor::new();
-        let (cpu, _, _, _, _) = m.collect();
+        let (cpu, _, _, _, _) = m.collect(&no_latency());
         assert!((0.0..=100.0).contains(&cpu), "cpu={cpu}");
     }
 
     #[test]
     fn collect_returns_valid_ram() {
         let mut m = Monitor::new();
-        let (_, ram, _, _, _) = m.collect();
+        let (_, ram, _, _, _) = m.collect(&no_latency());
         assert!(ram.total > 0, "total RAM should be > 0");
         assert!((0.0..=100.0).contains(&ram.percent), "ram%={}", ram.percent);
         assert!(ram.used <= ram.total);
@@ -234,9 +239,8 @@ mod tests {
     #[test]
     fn collect_returns_disks() {
         let mut m = Monitor::new();
-        let (_, _, disks, _, _) = m.collect();
-        // At least the system drive should appear on any Windows machine.
-        assert!(!disks.is_empty(), "expected at least one disk");
+        let (_, _, disks, _, _) = m.collect(&no_latency());
+        assert!(!disks.is_empty(), "expected at least one disk on Windows");
         for d in &disks {
             assert!((0.0..=100.0).contains(&d.percent), "disk%={}", d.percent);
             assert!(d.used <= d.total);
@@ -246,14 +250,46 @@ mod tests {
     #[test]
     fn collect_returns_network_non_negative() {
         let mut m = Monitor::new();
-        // First call initialises the delta counters.
-        m.collect();
-        // Second call should return a proper delta.
-        let (_, _, _, interfaces, _) = m.collect();
-        // All rates must be non-negative.
-        for iface in &interfaces {
-            assert!(iface.upload >= 0.0, "upload < 0 on {}", iface.name);
-            assert!(iface.download >= 0.0, "download < 0 on {}", iface.name);
-        }
+        m.collect(&no_latency());
+        let (_, _, _, net, _) = m.collect(&no_latency());
+        assert!(net.upload >= 0.0, "upload should be >= 0");
+        assert!(net.download >= 0.0, "download should be >= 0");
+    }
+
+    #[test]
+    fn collect_propagates_latency_from_shared_state() {
+        let latency = Arc::new(Mutex::new(Some(42u32)));
+        let mut m = Monitor::new();
+        let (_, _, _, net, _) = m.collect(&latency);
+        assert_eq!(net.latency_ms, Some(42), "latency_ms should match shared state");
+    }
+
+    #[test]
+    fn collect_propagates_none_latency() {
+        let mut m = Monitor::new();
+        let (_, _, _, net, _) = m.collect(&no_latency());
+        assert_eq!(net.latency_ms, None);
+    }
+
+    #[test]
+    fn network_metrics_serializes_latency_ms() {
+        let net = NetworkMetrics { upload: 1.0, download: 2.0, latency_ms: Some(15) };
+        let json = serde_json::to_string(&net).unwrap();
+        assert!(json.contains("\"latency_ms\":15"), "json={json}");
+    }
+
+    #[test]
+    fn network_metrics_serializes_null_latency() {
+        let net = NetworkMetrics { upload: 0.0, download: 0.0, latency_ms: None };
+        let json = serde_json::to_string(&net).unwrap();
+        assert!(json.contains("\"latency_ms\":null"), "json={json}");
+    }
+
+    #[test]
+    fn latency_poller_starts_without_panic() {
+        let shared = start_latency_poller();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        // Just verifying the poller thread spawned and the Arc is accessible
+        drop(shared.lock().unwrap());
     }
 }

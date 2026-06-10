@@ -54,7 +54,7 @@ export function formatRate(bytesPerSec: number): string {
  */
 export function latencyColor(ms: number): string {
   if (ms > 100) return 'var(--color-danger)';
-  if (ms > 30)  return 'var(--color-warn)';
+  if (ms >= 30) return 'var(--color-warn)';
   return 'var(--color-ok)';
 }
 
