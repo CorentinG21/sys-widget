@@ -29,13 +29,14 @@ src/
       metrics.svelte.ts      → $state métriques, listen('metrics-updated')
       settings.svelte.ts     → $state settings, load/save via plugin-store
     utils/
-      colors.ts              → seuils couleurs, formatBytes
+      colors.ts              → seuils couleurs, formatBytes, latencyColor
+      colors.test.ts         → tests Vitest pour toutes les fonctions de colors.ts
 
 src-tauri/
   src/
     main.rs                  → entrée Tauri
     lib.rs                   → commandes Tauri, boucle métriques 2s, updater
-    monitor.rs               → Monitor : CPU rolling avg, RAM, disques (cache 10s), réseau delta
+    monitor.rs               → Monitor : CPU rolling avg, RAM, disques (cache 10s), réseau delta, latence TCP
     lhm.rs                   → LhmProcess : subprocess PS persistant, températures CPU/GPU
     models.rs                → structs MetricsPayload, CpuMetrics, GpuMetrics, etc.
     startup.rs               → schtask register/unregister/toggle via schtasks.exe
@@ -79,7 +80,7 @@ Releases : https://github.com/CorentinG21/sys-widget/releases
 | GPU % + °C + VRAM | LHM DLL (via PS subprocess) | 2 s |
 | RAM % + Go | sysinfo | 2 s |
 | Disques % + Go | sysinfo (caché 10 s) | 10 s |
-| Réseau ↑↓ MB/s | sysinfo delta | 2 s |
+| Réseau ↑↓ MB/s + latence ms | sysinfo delta + TCP connect 8.8.8.8:53 | 2 s / 5 s |
 | Top process CPU | sysinfo | 2 s |
 
 ## Fonctionnalités
@@ -120,6 +121,19 @@ Ancrage gauche (↖ / ↙) : le panel settings est à **droite**.
 | 70–89 % | Jaune `#ffd166` |
 | ≥ 90 % | Rouge `#ff6b6b` |
 
+## Latence réseau (`monitor.rs` + `NetworkRow.svelte`)
+
+`start_latency_poller()` démarre un thread dédié qui tente un TCP connect vers `8.8.8.8:53` toutes les 5 s (timeout 2 s). Le résultat est stocké dans un `Arc<Mutex<Option<u32>>>` et injecté dans `NetworkMetrics.latency_ms` à chaque tick.
+
+Affiché dans `NetworkRow` sous forme `• Xms` (ou `• --` si offline).
+
+| Seuil | Couleur |
+|---|---|
+| < 30 ms | Vert `--color-ok` |
+| 30–100 ms | Jaune `--color-warn` |
+| > 100 ms | Rouge `--color-danger` |
+| null | Gris (offline / timeout) |
+
 ## Couleur réseau (seuils MB/s)
 
 | Seuil | Upload | Download |
@@ -127,6 +141,21 @@ Ancrage gauche (↖ / ↙) : le panel settings est à **droite**.
 | < 1 MB/s | Vert `#06d6a0` | Cyan `#74d7f7` |
 | 1–9 MB/s | Jaune `#ffd166` | Jaune `#ffd166` |
 | ≥ 10 MB/s | Rouge `#ff6b6b` | Rouge `#ff6b6b` |
+
+## Tests
+
+### TypeScript (Vitest)
+```powershell
+npm run test        # run once
+npm run test:watch  # watch mode
+```
+Tests dans `src/lib/utils/colors.test.ts` — couvre `thresholdColor`, `netColors`, `formatRate`, `formatBytes`, `latencyColor`.
+
+### Rust
+```powershell
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+Tests dans `monitor.rs` (latence, sérialisation JSON, collect) et `lhm.rs` (parsing JSON).
 
 ## Modifier le polling
 

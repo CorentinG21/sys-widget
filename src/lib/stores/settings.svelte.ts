@@ -1,7 +1,9 @@
 import { load } from '@tauri-apps/plugin-store';
 import { invoke } from '@tauri-apps/api/core';
+import type { Lang } from '$lib/i18n';
 
 export type AccentColor = 'cyan' | 'matrix' | 'white' | 'custom';
+export type { Lang };
 
 /** Transparency: 0–100 (opacity %). Default 78. */
 export type Transparency = number;
@@ -24,6 +26,8 @@ export interface Settings {
   alwaysOnTop: boolean;
   // Temperature unit
   tempUnit: 'C' | 'F' | 'K';
+  // UI language
+  lang: Lang;
 }
 
 const STORE_PATH = 'config.json';
@@ -42,6 +46,7 @@ export const settings = $state<Settings>({
   pollInterval: 2,
   alwaysOnTop: false,
   tempUnit: 'C',
+  lang: 'fr',
 });
 
 /** Migrate old string values → numeric. */
@@ -74,6 +79,8 @@ export async function loadSettings(): Promise<void> {
   settings.alwaysOnTop  = (await store.get<boolean>('alwaysOnTop')) ?? false;
   const savedUnit = await store.get<string>('tempUnit');
   settings.tempUnit = (['C', 'F', 'K'].includes(savedUnit as string) ? savedUnit : 'C') as 'C' | 'F' | 'K';
+  const savedLang = await store.get<string>('lang');
+  settings.lang = (['fr', 'en'].includes(savedLang as string) ? savedLang : 'fr') as Lang;
 }
 
 export async function saveSettings(): Promise<void> {
@@ -92,6 +99,7 @@ export async function saveSettings(): Promise<void> {
     await store.set('pollInterval', settings.pollInterval);
     await store.set('alwaysOnTop',  settings.alwaysOnTop);
     await store.set('tempUnit',     settings.tempUnit);
+    await store.set('lang',         settings.lang);
     await store.save();
   } catch (e) {
     console.error('[settings] save failed:', e);

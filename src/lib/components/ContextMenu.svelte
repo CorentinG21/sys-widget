@@ -3,6 +3,10 @@
   import { getVersion } from '@tauri-apps/api/app';
   import { tick } from 'svelte';
   import { onMount } from 'svelte';
+  import { settings, saveSettings } from '$lib/stores/settings.svelte';
+  import type { Lang } from '$lib/stores/settings.svelte';
+  import { translations } from '$lib/i18n';
+  const t = $derived(translations[settings.lang]);
   interface Props {
     x: number;
     y: number;
@@ -76,6 +80,12 @@
     await onsaveposition();          // persist on clean quit too
     await invoke('quit_app');
   }
+
+  async function setLang(lang: Lang) {
+    settings.lang = lang;
+    settings.tempUnit = lang === 'en' ? 'F' : 'C';
+    await saveSettings();
+  }
 </script>
 
 {#if visible}
@@ -92,41 +102,61 @@
     <div class="menu-divider"></div>
 
     <button class="menu-item" role="menuitem" onclick={openSettings}>
-      ⚙ Paramètres…
+      {t.settings}
     </button>
 
     <div class="menu-divider"></div>
 
     {#if updateVersion}
       <button class="menu-item menu-item--update" role="menuitem" onclick={installUpdate} disabled={installing}>
-        {installing ? 'Téléchargement…' : `Mettre à jour v${updateVersion}`}
+        {installing ? t.downloading : `${t.updateAvailable}${updateVersion}`}
       </button>
     {/if}
 
     <button class="menu-item" class:menu-item--muted={!!updateMsg} role="menuitem" onclick={checkUpdate} disabled={checkingUpdate}>
       {#if checkingUpdate}
-        Vérification…
+        {t.checking}
       {:else if updateMsg}
         {updateMsg}
       {:else}
-        Rechercher une mise à jour
+        {t.checkUpdate}
       {/if}
     </button>
 
     <div class="menu-divider"></div>
 
     <button class="menu-item" role="menuitem" onclick={toggleStartup}>
-      {startupEnabled ? '✓' : '○'} Démarrer avec Windows
+      {startupEnabled ? '✓' : '○'} {t.startWithWindows}
     </button>
 
+    <div class="menu-divider"></div>
+
+    <div class="lang-row" role="menuitem" aria-label={t.language}>
+      <span class="lang-label">{t.language}</span>
+      <div class="lang-btns">
+        <button
+          class="lang-btn"
+          class:active={settings.lang === 'fr'}
+          onclick={() => setLang('fr')}
+        >FR</button>
+        <button
+          class="lang-btn"
+          class:active={settings.lang === 'en'}
+          onclick={() => setLang('en')}
+        >EN</button>
+      </div>
+    </div>
+
+    <div class="menu-divider"></div>
+
     <button class="menu-item" role="menuitem" onclick={restart}>
-      Redémarrer
+      {t.restart}
     </button>
 
     <div class="menu-divider"></div>
 
     <button class="menu-item menu-item--danger" role="menuitem" onclick={quit}>
-      Quitter
+      {t.quit}
     </button>
 
   </div>
@@ -204,5 +234,45 @@
     height: 1px;
     background: rgba(255, 255, 255, 0.07);
     margin: 3px 0;
+  }
+
+  .lang-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 14px;
+  }
+
+  .lang-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .lang-btns {
+    display: flex;
+    gap: 4px;
+  }
+
+  .lang-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: inherit;
+    font-size: 10px;
+    padding: 2px 7px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .lang-btn.active {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #e8e8e8;
+  }
+
+  .lang-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e8e8e8;
   }
 </style>

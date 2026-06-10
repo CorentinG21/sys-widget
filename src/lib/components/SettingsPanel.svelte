@@ -3,6 +3,8 @@
   import { load } from '@tauri-apps/plugin-store';
   import { invoke } from '@tauri-apps/api/core';
   import { settings, saveSettings } from '$lib/stores/settings.svelte';
+  import { translations } from '$lib/i18n';
+  const t = $derived(translations[settings.lang]);
   import type { AccentColor, Transparency } from '$lib/stores/settings.svelte';
 
   interface Props {
@@ -146,21 +148,21 @@
 
 
   const ACCENTS: { id: AccentColor; color: string; label: string }[] = [
-    { id: 'cyan',   color: '#06d6a0', label: 'Cyan Néon' },
-    { id: 'matrix', color: '#00ff41', label: 'Vert Matrix' },
-    { id: 'white',  color: '#e0e0e0', label: 'Blanc Épuré' },
+    { id: 'cyan',   color: '#06d6a0', label: 'Cyan' },
+    { id: 'matrix', color: '#00ff41', label: 'Matrix' },
+    { id: 'white',  color: '#e0e0e0', label: 'White' },
   ];
 
 </script>
 
 <div class="settings-panel" style="background: rgba(10, 10, 10, {(settings.transparency / 100).toFixed(2)});">
   <div class="panel-header">
-    <span class="panel-title">⚙ Paramètres</span>
+    <span class="panel-title">{t.settingsTitle}</span>
     <button class="close-btn" onclick={onclose}>✕</button>
   </div>
 
   <section>
-    <div class="section-label">Couleur</div>
+    <div class="section-label">{t.color}</div>
     <div class="swatches">
       {#each ACCENTS as accent}
         <button
@@ -178,7 +180,7 @@
         class:active={accentColor === 'custom'}
         class:swatch-custom--selected={accentColor === 'custom'}
         style="background: {accentColor === 'custom' ? customColor : '#2a2a2a'};"
-        title="Couleur personnalisée"
+        title={t.customColor}
         onclick={() => setAccent('custom')}
       ></button>
     </div>
@@ -204,7 +206,7 @@
 
   <section>
     <div class="transp-header">
-      <span class="section-label">Transparence</span>
+      <span class="section-label">{t.transparency}</span>
       <span class="transp-value">{transparency}%</span>
     </div>
     <input
@@ -217,8 +219,8 @@
       oninput={(e) => setTransparency(Number(e.currentTarget.value))}
     />
     <div class="transp-labels">
-      <span>Transparent</span>
-      <span>Opaque</span>
+      <span>{t.transparent}</span>
+      <span>{t.opaque}</span>
     </div>
   </section>
 
@@ -226,27 +228,27 @@
 
   <section>
     <button class="toggle-row" onclick={toggleDetails}>
-      {showDetails ? '✓' : '○'} Afficher les détails
+      {showDetails ? '✓' : '○'} {t.showDetails}
     </button>
     <button class="toggle-row" onclick={toggleLocked}>
-      {settings.locked ? '✓' : '○'} Verrouiller la position
+      {settings.locked ? '✓' : '○'} {t.lockPosition}
     </button>
     <button class="toggle-row" onclick={toggleAlwaysOnTop}>
-      {settings.alwaysOnTop ? '✓' : '○'} Toujours au premier plan
+      {settings.alwaysOnTop ? '✓' : '○'} {t.alwaysOnTop}
     </button>
   </section>
 
   <div class="sdivider"></div>
 
   <section>
-    <div class="section-label">Lignes visibles</div>
+    <div class="section-label">{t.visibleRows}</div>
     <div class="rows-grid">
       {#each [
-        { key: 'showCpu',     label: 'CPU'    },
-        { key: 'showGpu',     label: 'GPU'    },
-        { key: 'showRam',     label: 'RAM'    },
-        { key: 'showDisks',   label: 'Disques'},
-        { key: 'showNetwork', label: 'Réseau' },
+        { key: 'showCpu',     label: 'CPU'       },
+        { key: 'showGpu',     label: 'GPU'       },
+        { key: 'showRam',     label: 'RAM'       },
+        { key: 'showDisks',   label: t.disks     },
+        { key: 'showNetwork', label: t.network   },
       ] as row}
         <button
           class="row-toggle"
@@ -260,7 +262,7 @@
   <div class="sdivider"></div>
 
   <section>
-    <div class="section-label">Températures</div>
+    <div class="section-label">{t.temperatures}</div>
     <div class="poll-grid">
       {#each (['C', 'F', 'K'] as const) as unit}
         <button
@@ -275,7 +277,7 @@
   <div class="sdivider"></div>
 
   <section>
-    <div class="section-label">Polling</div>
+    <div class="section-label">{t.polling}</div>
     <div class="poll-grid">
       {#each ([1, 2, 5] as const) as s}
         <button
@@ -290,12 +292,12 @@
   <div class="sdivider"></div>
 
   <section>
-    <div class="section-label">Ancrer le widget</div>
+    <div class="section-label">{t.anchorWidget}</div>
     <div class="anchor-grid">
-      <button class="anchor-btn" onclick={() => onanchor('top-left')}>↖ Haut gauche</button>
-      <button class="anchor-btn" onclick={() => onanchor('top-right')}>↗ Haut droite</button>
-      <button class="anchor-btn" onclick={() => onanchor('bottom-left')}>↙ Bas gauche</button>
-      <button class="anchor-btn" onclick={() => onanchor('bottom-right')}>↘ Bas droite</button>
+      <button class="anchor-btn" onclick={() => onanchor('top-left')}>{t.topLeft}</button>
+      <button class="anchor-btn" onclick={() => onanchor('top-right')}>{t.topRight}</button>
+      <button class="anchor-btn" onclick={() => onanchor('bottom-left')}>{t.bottomLeft}</button>
+      <button class="anchor-btn" onclick={() => onanchor('bottom-right')}>{t.bottomRight}</button>
     </div>
   </section>
 </div>

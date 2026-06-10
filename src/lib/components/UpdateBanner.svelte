@@ -1,5 +1,8 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { settings } from '$lib/stores/settings.svelte';
+  import { translations } from '$lib/i18n';
+  const t = $derived(translations[settings.lang]);
 
   interface Props {
     version: string;
@@ -17,9 +20,9 @@
 
 <button class="update-banner" onclick={update} disabled={installing}>
   {#if installing}
-    Installation en cours…
+    {t.installing}
   {:else}
-    Nouvelle version v{version} — cliquer pour mettre à jour
+    {t.newVersion}{version}{t.clickToUpdate}
   {/if}
 </button>
 
