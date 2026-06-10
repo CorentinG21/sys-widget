@@ -17,9 +17,7 @@ pub fn is_registered() -> bool {
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    cmd.output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    cmd.output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 /// Creates an ONLOGON task that runs the given exe with highest privileges.
@@ -79,9 +77,7 @@ pub(crate) fn unregister() -> bool {
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
-    cmd.output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    cmd.output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 /// Toggle: register if not registered, unregister otherwise.
