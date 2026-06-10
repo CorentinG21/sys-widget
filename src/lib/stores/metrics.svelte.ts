@@ -30,6 +30,7 @@ export interface DiskInfo {
 export interface NetworkMetrics {
   upload: number;
   download: number;
+  latency_ms: number | null;
 }
 
 export interface TopProcess {
@@ -54,7 +55,7 @@ export const metrics = $state<MetricsPayload>({
   gpu:     null,
   ram:     { percent: 0, used: 0, total: 0 },
   disks:   [],
-  network: { upload: 0, download: 0 },
+  network: { upload: 0, download: 0, latency_ms: null },
   top_cpu: null,
 });
 

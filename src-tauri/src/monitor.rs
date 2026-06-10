@@ -1,7 +1,40 @@
+use std::net::ToSocketAddrs;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
 
 use crate::models::{DiskInfo, NetworkMetrics, RamMetrics, TopProcess};
+
+/// Spawns a background thread that measures TCP latency to 8.8.8.8:53 every 5 s.
+/// Returns a shared handle to the latest result.
+pub fn start_latency_poller() -> Arc<Mutex<Option<u32>>> {
+    let shared: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
+    let shared_clone = Arc::clone(&shared);
+
+    std::thread::spawn(move || {
+        let addr = "8.8.8.8:53"
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut it| it.next());
+
+        loop {
+            let result = addr.and_then(|a| {
+                let start = Instant::now();
+                std::net::TcpStream::connect_timeout(&a, std::time::Duration::from_secs(2))
+                    .ok()
+                    .map(|_| start.elapsed().as_millis() as u32)
+            });
+
+            if let Ok(mut guard) = shared_clone.lock() {
+                *guard = result;
+            }
+
+            std::thread::sleep(std::time::Duration::from_secs(5));
+        }
+    });
+
+    shared
+}
 
 /// Handles repeated sysinfo polls for CPU, RAM, disks, and network.
 pub struct Monitor {
@@ -68,7 +101,7 @@ impl Monitor {
 
     /// Refresh all sensors and return current snapshots.
     /// Disks are re-queried at most once every 10 seconds.
-    pub fn collect(&mut self) -> (f32, RamMetrics, Vec<DiskInfo>, NetworkMetrics, Option<TopProcess>) {
+    pub fn collect(&mut self, latency: &Arc<Mutex<Option<u32>>>) -> (f32, RamMetrics, Vec<DiskInfo>, NetworkMetrics, Option<TopProcess>) {
         // CPU — rolling average over 3 samples to smooth hardware-driver spikes
         self.sys.refresh_cpu_usage();
         let raw_cpu = self.sys.cpus().iter().map(|c| c.cpu_usage()).sum::<f32>()
@@ -110,7 +143,8 @@ impl Monitor {
         self.prev_sent = sent;
         self.prev_recv = recv;
         self.last_net_poll = Instant::now();
-        let network = NetworkMetrics { upload, download };
+        let latency_ms = latency.lock().ok().and_then(|g| *g);
+        let network = NetworkMetrics { upload, download, latency_ms };
 
         // Top CPU process — refresh CPU-only data for all processes
         self.sys.refresh_processes_specifics(

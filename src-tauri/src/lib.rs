@@ -20,7 +20,7 @@ use tokio::time;
 
 use lhm::LhmProcess;
 use models::MetricsPayload;
-use monitor::Monitor;
+use monitor::{Monitor, start_latency_poller};
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
@@ -235,6 +235,9 @@ pub fn run() {
             let poll_ms = Arc::new(AtomicU64::new(2_000));
             app.manage(poll_ms.clone());
 
+            // ── Latency poller (TCP connect, runs every 5 s in its own thread) ─
+            let latency = start_latency_poller();
+
             // ── Metrics loop ────────────────────────────────────────────────
             let mut monitor = Monitor::new();
             let app_metrics = app_handle.clone();
@@ -244,7 +247,7 @@ pub fn run() {
                 time::sleep(Duration::from_millis(poll_ms.load(Ordering::Relaxed))).await;
                 loop {
 
-                    let (cpu_percent, ram, disks, network, top_cpu) = monitor.collect();
+                    let (cpu_percent, ram, disks, network, top_cpu) = monitor.collect(&latency);
                     let lhm_data = lhm
                         .lock()
                         .ok()

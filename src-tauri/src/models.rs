@@ -53,6 +53,8 @@ pub struct NetworkMetrics {
     pub upload: f64,
     /// Download bytes/s.
     pub download: f64,
+    /// Round-trip latency in ms via TCP connect to 8.8.8.8:53. None = offline/timeout.
+    pub latency_ms: Option<u32>,
 }
 
 /// Data received from the LHM PowerShell subprocess.

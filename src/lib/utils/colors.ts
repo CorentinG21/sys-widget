@@ -46,6 +46,19 @@ export function formatRate(bytesPerSec: number): string {
 }
 
 /**
+ * Returns a CSS color var for a latency value in ms.
+ *
+ * < 30ms   → green  --color-ok
+ * 30–100ms → yellow --color-warn
+ * > 100ms  → red    --color-danger
+ */
+export function latencyColor(ms: number): string {
+  if (ms > 100) return 'var(--color-danger)';
+  if (ms > 30)  return 'var(--color-warn)';
+  return 'var(--color-ok)';
+}
+
+/**
  * Formats bytes as a compact size string (used for RAM / VRAM display).
  *
  * Examples:
