@@ -5,8 +5,8 @@ fn main() {
     // In debug builds, skip UAC so `cargo run` / `tauri dev` works without elevation.
     #[cfg(not(debug_assertions))]
     {
-    windows = windows.app_manifest(
-        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        windows = windows.app_manifest(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <!-- Common Controls v6 — required for TaskDialogIndirect and modern UI -->
   <dependency>
@@ -35,7 +35,7 @@ fn main() {
     </application>
   </compatibility>
 </assembly>"#,
-    );
+        );
     } // end #[cfg(not(debug_assertions))]
 
     tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))

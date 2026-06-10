@@ -36,7 +36,14 @@ Register-ScheduledTask -TaskName '{name}' -Action $action -Trigger $trigger -Set
     );
 
     let mut cmd = Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &ps]);
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        &ps,
+    ]);
 
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -44,7 +51,10 @@ Register-ScheduledTask -TaskName '{name}' -Action $action -Trigger $trigger -Set
     cmd.output()
         .map(|o| {
             if !o.status.success() {
-                eprintln!("[startup] register failed: {}", String::from_utf8_lossy(&o.stderr));
+                eprintln!(
+                    "[startup] register failed: {}",
+                    String::from_utf8_lossy(&o.stderr)
+                );
             }
             o.status.success()
         })

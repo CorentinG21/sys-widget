@@ -101,7 +101,16 @@ impl Monitor {
 
     /// Refresh all sensors and return current snapshots.
     /// Disks are re-queried at most once every 10 seconds.
-    pub fn collect(&mut self, latency: &Arc<Mutex<Option<u32>>>) -> (f32, RamMetrics, Vec<DiskInfo>, NetworkMetrics, Option<TopProcess>) {
+    pub fn collect(
+        &mut self,
+        latency: &Arc<Mutex<Option<u32>>>,
+    ) -> (
+        f32,
+        RamMetrics,
+        Vec<DiskInfo>,
+        NetworkMetrics,
+        Option<TopProcess>,
+    ) {
         // CPU — rolling average over 3 samples to smooth hardware-driver spikes
         self.sys.refresh_cpu_usage();
         let raw_cpu = self.sys.cpus().iter().map(|c| c.cpu_usage()).sum::<f32>()
@@ -144,7 +153,11 @@ impl Monitor {
         self.prev_recv = recv;
         self.last_net_poll = Instant::now();
         let latency_ms = latency.lock().ok().and_then(|g| *g);
-        let network = NetworkMetrics { upload, download, latency_ms };
+        let network = NetworkMetrics {
+            upload,
+            download,
+            latency_ms,
+        };
 
         // Top CPU process — refresh CPU-only data for all processes
         self.sys.refresh_processes_specifics(
@@ -177,11 +190,9 @@ impl Monitor {
 }
 
 fn total_net_bytes(networks: &Networks) -> (u64, u64) {
-    networks
-        .iter()
-        .fold((0, 0), |(s, r), (_, data)| {
-            (s + data.total_transmitted(), r + data.total_received())
-        })
+    networks.iter().fold((0, 0), |(s, r), (_, data)| {
+        (s + data.total_transmitted(), r + data.total_received())
+    })
 }
 
 fn collect_disks(disks: &Disks) -> Vec<DiskInfo> {
@@ -261,7 +272,11 @@ mod tests {
         let latency = Arc::new(Mutex::new(Some(42u32)));
         let mut m = Monitor::new();
         let (_, _, _, net, _) = m.collect(&latency);
-        assert_eq!(net.latency_ms, Some(42), "latency_ms should match shared state");
+        assert_eq!(
+            net.latency_ms,
+            Some(42),
+            "latency_ms should match shared state"
+        );
     }
 
     #[test]
@@ -273,14 +288,22 @@ mod tests {
 
     #[test]
     fn network_metrics_serializes_latency_ms() {
-        let net = NetworkMetrics { upload: 1.0, download: 2.0, latency_ms: Some(15) };
+        let net = NetworkMetrics {
+            upload: 1.0,
+            download: 2.0,
+            latency_ms: Some(15),
+        };
         let json = serde_json::to_string(&net).unwrap();
         assert!(json.contains("\"latency_ms\":15"), "json={json}");
     }
 
     #[test]
     fn network_metrics_serializes_null_latency() {
-        let net = NetworkMetrics { upload: 0.0, download: 0.0, latency_ms: None };
+        let net = NetworkMetrics {
+            upload: 0.0,
+            download: 0.0,
+            latency_ms: None,
+        };
         let json = serde_json::to_string(&net).unwrap();
         assert!(json.contains("\"latency_ms\":null"), "json={json}");
     }

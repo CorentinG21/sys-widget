@@ -73,15 +73,15 @@ impl LhmProcess {
     pub fn start(script_path: PathBuf) -> Result<Self, String> {
         let mut cmd = Command::new("powershell");
         cmd.args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                script_path.to_str().ok_or("invalid script path")?,
-            ])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script_path.to_str().ok_or("invalid script path")?,
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
 
         // Hide the PowerShell console window on Windows.
         #[cfg(target_os = "windows")]
@@ -145,7 +145,7 @@ mod tests {
         let gpu = data.gpu.unwrap();
         assert_eq!(gpu.percent, 30.0);
         assert_eq!(gpu.temp, Some(65.0));
-        assert_eq!(gpu.vram_used,  2048_u64 * 1_048_576);
+        assert_eq!(gpu.vram_used, 2048_u64 * 1_048_576);
         assert_eq!(gpu.vram_total, 8192_u64 * 1_048_576);
     }
 

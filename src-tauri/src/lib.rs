@@ -3,14 +3,14 @@ mod models;
 mod monitor;
 mod startup;
 
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::time;
 
 // Tauri manages its own tokio runtime; we import tokio::time directly
@@ -20,7 +20,7 @@ use tokio::time;
 
 use lhm::LhmProcess;
 use models::MetricsPayload;
-use monitor::{Monitor, start_latency_poller};
+use monitor::{start_latency_poller, Monitor};
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,12 @@ async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
         Ok(Some(update)) => {
             let version = update.version.clone();
             eprintln!("[updater] update available: {version}");
-            if let Err(e) = app.emit("update-available", UpdateInfo { version: version.clone() }) {
+            if let Err(e) = app.emit(
+                "update-available",
+                UpdateInfo {
+                    version: version.clone(),
+                },
+            ) {
                 eprintln!("[updater] emit error: {e}");
             }
             Ok(Some(version))
@@ -160,17 +165,15 @@ pub fn run() {
                 .id("version")
                 .enabled(false)
                 .build(app)?;
-            let sep1         = PredefinedMenuItem::separator(app)?;
-            let update_item  = MenuItemBuilder::new("Rechercher une mise à jour")
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            let update_item = MenuItemBuilder::new("Rechercher une mise à jour")
                 .id("check_update")
                 .build(app)?;
-            let sep2         = PredefinedMenuItem::separator(app)?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
             let restart_item = MenuItemBuilder::new("Redémarrer")
                 .id("restart")
                 .build(app)?;
-            let quit_item    = MenuItemBuilder::new("Quitter")
-                .id("quit")
-                .build(app)?;
+            let quit_item = MenuItemBuilder::new("Quitter").id("quit").build(app)?;
 
             let tray_menu = MenuBuilder::new(app)
                 .item(&version_item)
@@ -185,23 +188,21 @@ pub fn run() {
                 .icon(tauri::include_image!("icons/tray-icon.ico"))
                 .tooltip("SysmonWidget")
                 .menu(&tray_menu)
-                .on_menu_event(|app, event| {
-                    match event.id().as_ref() {
-                        "check_update" => {
-                            let app = app.clone();
-                            tauri::async_runtime::spawn(async move {
-                                check_updates(app).await;
-                            });
-                        }
-                        "restart" => {
-                            if let Ok(exe) = std::env::current_exe() {
-                                let _ = std::process::Command::new(exe).spawn();
-                            }
-                            app.exit(0);
-                        }
-                        "quit" => app.exit(0),
-                        _ => {}
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "check_update" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            check_updates(app).await;
+                        });
                     }
+                    "restart" => {
+                        if let Ok(exe) = std::env::current_exe() {
+                            let _ = std::process::Command::new(exe).spawn();
+                        }
+                        app.exit(0);
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
                 })
                 .build(app)?;
 
@@ -246,7 +247,6 @@ pub fn run() {
                 // Initial delay before first tick
                 time::sleep(Duration::from_millis(poll_ms.load(Ordering::Relaxed))).await;
                 loop {
-
                     let (cpu_percent, ram, disks, network, top_cpu) = monitor.collect(&latency);
                     let lhm_data = lhm
                         .lock()
