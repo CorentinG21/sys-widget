@@ -209,7 +209,6 @@
 
   onMount(async () => {
     await restorePosition();
-    await appWindow.setSkipTaskbar(true);
     await appWindow.show();
     await appWindow.onMoved(savePosition);
     await appWindow.onCloseRequested(async () => { await savePosition(); });
