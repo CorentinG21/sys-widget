@@ -8,7 +8,7 @@ export type { Lang };
 /** Transparency: 0–100 (opacity %). Default 78. */
 export type Transparency = number;
 
-export type DisplayMode = 0 | 1 | 2;
+export type DisplayMode = 0 | 1;
 
 export interface Settings {
   accentColor:  AccentColor;
@@ -71,9 +71,8 @@ export async function loadSettings(): Promise<void> {
   // Migrate legacy showDetails boolean → displayMode number
   const savedMode = await store.get<number>('displayMode');
   const legacyDetails = await store.get<boolean>('showDetails');
-  settings.displayMode = (savedMode === 0 || savedMode === 1 || savedMode === 2)
-    ? savedMode
-    : (legacyDetails === false ? 0 : 1);
+  const rawMode = (savedMode === 0 || savedMode === 1 || savedMode === 2) ? savedMode : (legacyDetails === false ? 0 : 1);
+  settings.displayMode = rawMode === 2 ? 1 : rawMode as DisplayMode;
   settings.locked       = (await store.get<boolean>('locked'))      ?? false;
   settings.showCpu      = (await store.get<boolean>('showCpu'))     ?? true;
   settings.showGpu      = (await store.get<boolean>('showGpu'))     ?? true;

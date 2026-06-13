@@ -224,12 +224,12 @@
   <section>
     <div class="section-label">{t.displayMode}</div>
     <div class="poll-grid">
-      {#each ([0, 1, 2] as const) as mode}
+      {#each ([0, 1] as const) as mode}
         <button
           class="poll-btn"
           class:active={displayMode === mode}
           onclick={() => setDisplayMode(mode)}
-        >{[t.displayCompact, t.displayNormal, t.displayFull][mode]}</button>
+        >{[t.displayCompact, t.displayNormal][mode]}</button>
       {/each}
     </div>
   </section>

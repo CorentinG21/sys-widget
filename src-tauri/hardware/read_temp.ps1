@@ -8,30 +8,42 @@ $c.Open()
 function Get-CpuTemp {
     param($hardware)
     $temp = $null
+    # Pass 1 : sondes privilegiees (AMD Tctl/Tdie, Intel CPU Package)
     foreach ($hw in $hardware) {
         $hw.Update()
         foreach ($s in $hw.Sensors) {
             if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
-                if ($s.Name -match 'Tctl|CPU Package') { $temp = $s.Value; break }
+                if ($s.Name -match 'Tctl|Tdie|CPU Package') { $temp = $s.Value; break }
             }
         }
+        if ($null -ne $temp) { break }
         foreach ($sub in $hw.SubHardware) {
             $sub.Update()
             foreach ($s in $sub.Sensors) {
                 if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
-                    if ($s.Name -match 'Tctl|CPU Package') { $temp = $s.Value; break }
+                    if ($s.Name -match 'Tctl|Tdie|CPU Package') { $temp = $s.Value; break }
                 }
             }
             if ($null -ne $temp) { break }
         }
         if ($null -ne $temp) { break }
     }
+    # Pass 2 : n'importe quelle sonde CPU/Core (top-level ET SubHardware)
     if ($null -eq $temp) {
         foreach ($hw in $hardware) {
             foreach ($s in $hw.Sensors) {
                 if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
                     if ($s.Name -match 'CPU|Core') { $temp = $s.Value; break }
                 }
+            }
+            if ($null -ne $temp) { break }
+            foreach ($sub in $hw.SubHardware) {
+                foreach ($s in $sub.Sensors) {
+                    if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
+                        if ($s.Name -match 'CPU|Core') { $temp = $s.Value; break }
+                    }
+                }
+                if ($null -ne $temp) { break }
             }
             if ($null -ne $temp) { break }
         }
@@ -76,6 +88,21 @@ function Read-GpuSensors {
         vram_used_mb  = $vramUsed
         vram_total_mb = $vramTotal
     }
+}
+
+function Get-CpuTempWmiFallback {
+    # Fallback via WMI ThermalZone — fonctionne sans droits admin sur la plupart des laptops.
+    # Renvoie la temperature en Celsius, ou $null si indisponible.
+    try {
+        $zones = Get-CimInstance -Namespace 'root\wmi' -ClassName 'MSAcpi_ThermalZoneTemperature' -ErrorAction SilentlyContinue
+        if ($zones) {
+            $temp = ($zones | Measure-Object -Property CurrentTemperature -Maximum).Maximum
+            if ($null -ne $temp -and $temp -gt 2731) {
+                return [math]::Round($temp / 10 - 273.15, 1)
+            }
+        }
+    } catch {}
+    return $null
 }
 
 function Get-GpuData {
@@ -172,8 +199,11 @@ try {
             $gpuData = Get-WindowsGpuFallback
         }
 
+        $cpuTemp = Get-CpuTemp $c.Hardware
+        if ($null -eq $cpuTemp) { $cpuTemp = Get-CpuTempWmiFallback }
+
         $obj = [ordered]@{
-            cpu_temp = Get-CpuTemp $c.Hardware
+            cpu_temp = $cpuTemp
             gpu      = $gpuData
         }
         [Console]::WriteLine(($obj | ConvertTo-Json -Compress -Depth 3))
