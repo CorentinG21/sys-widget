@@ -125,6 +125,12 @@
     }
   }
 
+  async function toggleClickThrough() {
+    settings.clickThrough = !settings.clickThrough;
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    await getCurrentWindow().setIgnoreCursorEvents(settings.clickThrough);
+  }
+
   async function toggleRow(key: 'showCpu' | 'showGpu' | 'showRam' | 'showDisks' | 'showNetwork') {
     (settings as unknown as Record<string, unknown>)[key] = !settings[key];
     await saveSettings();
@@ -242,6 +248,9 @@
     </button>
     <button class="toggle-row" onclick={toggleAlwaysOnTop}>
       {settings.alwaysOnTop ? '✓' : '○'} {t.alwaysOnTop}
+    </button>
+    <button class="toggle-row" onclick={toggleClickThrough}>
+      {settings.clickThrough ? '✓' : '○'} {t.clickThrough}
     </button>
   </section>
 

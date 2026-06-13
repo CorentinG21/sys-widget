@@ -17,6 +17,9 @@
     "core:window:allow-available-monitors",
     "store:default",
     "core:tray:default",
-    "updater:default"
+    "updater:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "core:window:allow-set-ignore-cursor-events"
   ]
 }

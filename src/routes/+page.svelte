@@ -5,6 +5,7 @@
   import { LogicalSize, PhysicalPosition } from '@tauri-apps/api/dpi';
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api/core';
+  import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
   import { load } from '@tauri-apps/plugin-store';
 
   import { metrics, cpuHistory, gpuHistory, cpuTempMax, gpuTempMax, startListening, stopListening } from '$lib/stores/metrics.svelte';
@@ -209,6 +210,15 @@
     }
   }
 
+  // ── Click-through ─────────────────────────────────────────────────────────
+
+  const CLICK_THROUGH_SHORTCUT = 'Ctrl+Shift+W';
+
+  async function toggleClickThrough() {
+    settings.clickThrough = !settings.clickThrough;
+    await appWindow.setIgnoreCursorEvents(settings.clickThrough);
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   onMount(async () => {
@@ -230,11 +240,17 @@
 
     // Re-assert window layer when the widget regains focus
     window.addEventListener('focus', applyWindowLayer);
+
+    // Global shortcut to toggle click-through — fire only on key down, not key up
+    await register(CLICK_THROUGH_SHORTCUT, (event) => {
+      if (event.state === 'Pressed') toggleClickThrough();
+    });
   });
 
-  onDestroy(() => {
+  onDestroy(async () => {
     stopListening();
     window.removeEventListener('focus', applyWindowLayer);
+    await unregister(CLICK_THROUGH_SHORTCUT);
   });
 
   // ── Temperature conversion ────────────────────────────────────────────────

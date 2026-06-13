@@ -26,6 +26,8 @@ export interface Settings {
   pollInterval: 1 | 2 | 5;
   // Window layer
   alwaysOnTop: boolean;
+  // Click-through (not persisted — resets to false on restart)
+  clickThrough: boolean;
   // Temperature unit
   tempUnit: 'C' | 'F' | 'K';
   // UI language
@@ -47,6 +49,7 @@ export const settings = $state<Settings>({
   showNetwork:  true,
   pollInterval: 2,
   alwaysOnTop: false,
+  clickThrough: false,
   tempUnit: 'C',
   lang: 'fr',
 });
