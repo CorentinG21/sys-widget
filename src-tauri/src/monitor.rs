@@ -136,9 +136,9 @@ impl Monitor {
             total,
         };
 
-        // Disks (cached 10 s)
+        // Disks (cached 10 s) — refresh_list() re-discovers new/removed drives (hot-plug)
         if self.last_disk_refresh.elapsed().as_secs() >= 10 {
-            self.disks.refresh();
+            self.disks.refresh_list();
             self.disk_cache = collect_disks(&self.disks);
             self.last_disk_refresh = Instant::now();
         }

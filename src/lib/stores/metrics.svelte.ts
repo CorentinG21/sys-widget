@@ -71,6 +71,11 @@ function pushHistory(arr: number[], value: number) {
   if (arr.length > MAX_HISTORY) arr.shift();
 }
 
+// ─── Session temperature max (reset on widget restart) ───────────────────────
+
+export const cpuTempMax = $state<{ value: number | null }>({ value: null });
+export const gpuTempMax = $state<{ value: number | null }>({ value: null });
+
 // ─── Listener lifecycle ───────────────────────────────────────────────────────
 
 let unlisten: UnlistenFn | null = null;
@@ -91,6 +96,18 @@ export async function startListening(): Promise<void> {
 
     pushHistory(cpuHistory, p.cpu.percent);
     pushHistory(gpuHistory, p.gpu ? p.gpu.percent : 0);
+
+    // Track session temperature maximums (in °C, conversion happens in +page.svelte)
+    if (p.cpu.temp !== null) {
+      if (cpuTempMax.value === null || p.cpu.temp > cpuTempMax.value) {
+        cpuTempMax.value = p.cpu.temp;
+      }
+    }
+    if (p.gpu?.temp !== null && p.gpu?.temp !== undefined) {
+      if (gpuTempMax.value === null || p.gpu.temp > gpuTempMax.value) {
+        gpuTempMax.value = p.gpu.temp;
+      }
+    }
   });
 }
 

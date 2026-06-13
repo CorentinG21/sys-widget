@@ -5,7 +5,7 @@
   import { settings, saveSettings } from '$lib/stores/settings.svelte';
   import { translations } from '$lib/i18n';
   const t = $derived(translations[settings.lang]);
-  import type { AccentColor, Transparency } from '$lib/stores/settings.svelte';
+  import type { AccentColor, Transparency, DisplayMode } from '$lib/stores/settings.svelte';
 
   interface Props {
     onclose: () => void;
@@ -18,7 +18,7 @@
   let customColor  = $state('#c084fc');
   let customHue    = $state(270);  // 0–360
   let transparency = $state<number>(78);
-  let showDetails  = $state(true);
+  let displayMode  = $state<DisplayMode>(1);
 
   // Convert HSL hue (fixed s=80%, l=62%) → hex string
   function hueToHex(h: number): string {
@@ -51,7 +51,7 @@
     customColor  = settings.customColor;
     customHue    = hexToHue(settings.customColor);
     transparency = settings.transparency;
-    showDetails  = settings.showDetails;
+    displayMode  = settings.displayMode;
   });
 
   function applyAccent(val: AccentColor, hex?: string) {
@@ -69,13 +69,8 @@
     );
   }
 
-  function applyDetails(show: boolean) {
-    const html = document.documentElement;
-    if (show) {
-      delete html.dataset.hideDetails;
-    } else {
-      html.dataset.hideDetails = '';
-    }
+  function applyDisplayMode(mode: DisplayMode) {
+    document.documentElement.dataset.displayMode = String(mode);
   }
 
   async function setAccent(val: AccentColor) {
@@ -103,10 +98,10 @@
     await saveSettings();
   }
 
-  async function toggleDetails() {
-    showDetails = !showDetails;
-    settings.showDetails = showDetails;
-    applyDetails(showDetails);
+  async function setDisplayMode(mode: DisplayMode) {
+    displayMode = mode;
+    settings.displayMode = mode;
+    applyDisplayMode(mode);
     await saveSettings();
   }
 
@@ -227,9 +222,21 @@
   <div class="sdivider"></div>
 
   <section>
-    <button class="toggle-row" onclick={toggleDetails}>
-      {showDetails ? '✓' : '○'} {t.showDetails}
-    </button>
+    <div class="section-label">{t.displayMode}</div>
+    <div class="poll-grid">
+      {#each ([0, 1, 2] as const) as mode}
+        <button
+          class="poll-btn"
+          class:active={displayMode === mode}
+          onclick={() => setDisplayMode(mode)}
+        >{[t.displayCompact, t.displayNormal, t.displayFull][mode]}</button>
+      {/each}
+    </div>
+  </section>
+
+  <div class="sdivider"></div>
+
+  <section>
     <button class="toggle-row" onclick={toggleLocked}>
       {settings.locked ? '✓' : '○'} {t.lockPosition}
     </button>

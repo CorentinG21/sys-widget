@@ -123,8 +123,6 @@
       {/if}
     </button>
 
-    <div class="menu-divider"></div>
-
     <button class="menu-item" role="menuitem" onclick={toggleStartup}>
       {startupEnabled ? '✓' : '○'} {t.startWithWindows}
     </button>
@@ -152,8 +150,6 @@
     <button class="menu-item" role="menuitem" onclick={restart}>
       {t.restart}
     </button>
-
-    <div class="menu-divider"></div>
 
     <button class="menu-item menu-item--danger" role="menuitem" onclick={quit}>
       {t.quit}

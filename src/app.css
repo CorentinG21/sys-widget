@@ -113,8 +113,13 @@ html, body {
 }
 
 
-/* ── Hide details toggle ── */
+/* ── Display mode ── */
 /* !important needed: Svelte scoped .sub-line rule has equal specificity */
-[data-hide-details] .sub-line {
+[data-display-mode="0"] .sub-line {
   display: none !important;
+}
+
+/* Mode full (2): sparklines always visible, not hover-only */
+[data-display-mode="2"] .sparkline-wrap {
+  opacity: 1 !important;
 }

@@ -8,11 +8,13 @@ export type { Lang };
 /** Transparency: 0–100 (opacity %). Default 78. */
 export type Transparency = number;
 
+export type DisplayMode = 0 | 1 | 2;
+
 export interface Settings {
   accentColor:  AccentColor;
   customColor:  string;        // hex for 'custom' theme, e.g. "#c084fc"
   transparency: Transparency;  // 20–98
-  showDetails:  boolean;
+  displayMode:  DisplayMode;   // 0=compact, 1=normal, 2=full
   locked:       boolean;
   // Visible rows
   showCpu:      boolean;
@@ -36,7 +38,7 @@ export const settings = $state<Settings>({
   accentColor:  'cyan',
   customColor:  '#c084fc',
   transparency: 78,
-  showDetails:  true,
+  displayMode:  1,
   locked:       false,
   showCpu:      true,
   showGpu:      true,
@@ -66,7 +68,12 @@ export async function loadSettings(): Promise<void> {
   settings.accentColor  = migratedAccent ?? 'cyan';
   settings.customColor  = (await store.get<string>('customColor'))  ?? '#c084fc';
   settings.transparency = migrateTransparency(await store.get('transparency'));
-  settings.showDetails  = (await store.get<boolean>('showDetails')) ?? true;
+  // Migrate legacy showDetails boolean → displayMode number
+  const savedMode = await store.get<number>('displayMode');
+  const legacyDetails = await store.get<boolean>('showDetails');
+  settings.displayMode = (savedMode === 0 || savedMode === 1 || savedMode === 2)
+    ? savedMode
+    : (legacyDetails === false ? 0 : 1);
   settings.locked       = (await store.get<boolean>('locked'))      ?? false;
   settings.showCpu      = (await store.get<boolean>('showCpu'))     ?? true;
   settings.showGpu      = (await store.get<boolean>('showGpu'))     ?? true;
@@ -89,7 +96,7 @@ export async function saveSettings(): Promise<void> {
     await store.set('accentColor',  settings.accentColor);
     await store.set('customColor',  settings.customColor);
     await store.set('transparency', settings.transparency);
-    await store.set('showDetails',  settings.showDetails);
+    await store.set('displayMode',  settings.displayMode);
     await store.set('locked',       settings.locked);
     await store.set('showCpu',      settings.showCpu);
     await store.set('showGpu',      settings.showGpu);
@@ -122,10 +129,6 @@ export async function applyToDocument(): Promise<void> {
     `rgba(10, 10, 10, ${(settings.transparency / 100).toFixed(2)})`
   );
 
-  // Details
-  if (settings.showDetails) {
-    delete html.dataset.hideDetails;
-  } else {
-    html.dataset.hideDetails = '';
-  }
+  // Display mode
+  html.dataset.displayMode = String(settings.displayMode);
 }

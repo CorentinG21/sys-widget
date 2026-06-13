@@ -225,6 +225,7 @@ pub fn run() {
                 script_path.exists()
             );
 
+            let script_path_for_restart = script_path.clone();
             let lhm: Arc<Mutex<Option<LhmProcess>>> = Arc::new(Mutex::new(
                 LhmProcess::start(script_path)
                     .map_err(|e| eprintln!("[lhm] startup error: {e}"))
@@ -253,6 +254,18 @@ pub fn run() {
                         .ok()
                         .and_then(|g| g.as_ref().map(|l| l.latest()))
                         .unwrap_or_default();
+
+                    // Watchdog: if the subprocess died, restart it.
+                    if let Ok(mut guard) = lhm.lock() {
+                        if let Some(lhm_proc) = guard.as_mut() {
+                            if !lhm_proc.is_alive() {
+                                eprintln!("[lhm] subprocess dead, attempting restart…");
+                                if let Err(e) = lhm_proc.restart(&script_path_for_restart) {
+                                    eprintln!("[lhm] restart failed: {e}");
+                                }
+                            }
+                        }
+                    }
 
                     let payload = MetricsPayload {
                         cpu: models::CpuMetrics {

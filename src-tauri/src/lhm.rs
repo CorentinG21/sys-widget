@@ -4,6 +4,7 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
     thread,
+    time::Instant,
 };
 
 #[cfg(target_os = "windows")]
@@ -16,6 +17,9 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 use serde::Deserialize;
 
 use crate::models::{GpuMetrics, LhmData};
+
+/// After this many seconds without a valid JSON line, `latest()` returns None temps.
+const STALE_SECS: u64 = 5;
 
 // ─── Raw structs matching read_temp.ps1 JSON output ──────────────────────────
 //
@@ -66,6 +70,8 @@ impl From<RawLhm> for LhmData {
 pub struct LhmProcess {
     child: Child,
     data: Arc<Mutex<LhmData>>,
+    /// Wall-clock time of the last successfully parsed JSON line.
+    last_seen: Arc<Mutex<Option<Instant>>>,
 }
 
 impl LhmProcess {
@@ -96,6 +102,9 @@ impl LhmProcess {
         let data: Arc<Mutex<LhmData>> = Arc::new(Mutex::new(LhmData::default()));
         let data_clone = Arc::clone(&data);
 
+        let last_seen: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+        let last_seen_clone = Arc::clone(&last_seen);
+
         // Background reader thread: parse JSON lines and update shared state.
         thread::spawn(move || {
             let reader = BufReader::new(stdout);
@@ -110,20 +119,49 @@ impl LhmProcess {
                         if let Ok(mut guard) = data_clone.lock() {
                             *guard = raw.into();
                         }
+                        if let Ok(mut ts) = last_seen_clone.lock() {
+                            *ts = Some(Instant::now());
+                        }
                     }
                     Err(e) => {
                         eprintln!("[lhm] JSON parse error: {e} — line: {line}");
                     }
                 }
             }
+            eprintln!("[lhm] reader thread exited (subprocess may have stopped)");
         });
 
-        Ok(Self { child, data })
+        Ok(Self { child, data, last_seen })
     }
 
     /// Return a clone of the latest LHM snapshot.
+    /// Returns `LhmData::default()` (None temps) if no valid data received in `STALE_SECS`.
     pub fn latest(&self) -> LhmData {
+        let is_stale = self
+            .last_seen
+            .lock()
+            .map(|ts| ts.map_or(true, |t| t.elapsed().as_secs() >= STALE_SECS))
+            .unwrap_or(true);
+        if is_stale {
+            return LhmData::default();
+        }
         self.data.lock().map(|g| g.clone()).unwrap_or_default()
+    }
+
+    /// Returns true if the subprocess is still running.
+    pub fn is_alive(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
+    }
+
+    /// Kill the current subprocess and spawn a fresh one from the same script.
+    pub fn restart(&mut self, script_path: &PathBuf) -> Result<(), String> {
+        let _ = self.child.kill();
+        let new = LhmProcess::start(script_path.clone())?;
+        self.child = new.child;
+        self.data = new.data;
+        self.last_seen = new.last_seen;
+        eprintln!("[lhm] subprocess restarted");
+        Ok(())
     }
 
     /// Kill the subprocess. Call this before process exit.

@@ -6,6 +6,7 @@
     label: string;
     percent: number;
     temp?: number | null;
+    tempMax?: number | null;
     tempSuffix?: string;
     detail?: string;
     na?: boolean;
@@ -17,6 +18,7 @@
     label,
     percent,
     temp = null,
+    tempMax = null,
     tempSuffix = '°',
     detail = '',
     na = false,
@@ -31,7 +33,13 @@
   // Build sub-line segments with · separator
   const subParts = $derived.by(() => {
     const parts: string[] = [];
-    if (temp !== null && temp !== undefined) parts.push(`${temp.toFixed(0)}${tempSuffix}`);
+    if (temp !== null && temp !== undefined) {
+      const tempStr = `${temp.toFixed(0)}${tempSuffix}`;
+      const maxStr = (tempMax !== null && tempMax !== undefined)
+        ? ` (max ${tempMax.toFixed(0)}${tempSuffix})`
+        : '';
+      parts.push(`${tempStr}${maxStr}`);
+    }
     if (detail) parts.push(detail);
     return parts;
   });

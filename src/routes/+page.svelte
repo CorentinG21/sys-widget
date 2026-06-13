@@ -7,7 +7,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { load } from '@tauri-apps/plugin-store';
 
-  import { metrics, cpuHistory, gpuHistory, startListening, stopListening } from '$lib/stores/metrics.svelte';
+  import { metrics, cpuHistory, gpuHistory, cpuTempMax, gpuTempMax, startListening, stopListening } from '$lib/stores/metrics.svelte';
   import { settings, loadSettings, applyToDocument } from '$lib/stores/settings.svelte';
 
   const appWindow = getCurrentWindow();
@@ -88,6 +88,8 @@
       const shiftPx = Math.round((PANEL_W + GAP) * dpr);
       await appWindow.setPosition(new PhysicalPosition(pos.x - shiftPx, pos.y));
     }
+    // Re-assert window layer after resize — setSize can reset TOPMOST on Windows
+    await applyWindowLayer();
   }
 
   async function closeSettings() {
@@ -101,6 +103,8 @@
       const shiftPx = Math.round((PANEL_W + GAP) * dpr);
       await appWindow.setPosition(new PhysicalPosition(pos.x + shiftPx, pos.y));
     }
+    // Re-assert window layer after resize
+    await applyWindowLayer();
   }
 
   // ── Context menu state ───────────────────────────────────────────────────
@@ -224,9 +228,14 @@
       updateVersion = event.payload.version;
     });
 
+    // Re-assert window layer when the widget regains focus
+    window.addEventListener('focus', applyWindowLayer);
   });
 
-  onDestroy(() => { stopListening(); });
+  onDestroy(() => {
+    stopListening();
+    window.removeEventListener('focus', applyWindowLayer);
+  });
 
   // ── Temperature conversion ────────────────────────────────────────────────
 
@@ -241,6 +250,9 @@
     settings.tempUnit === 'F' ? '°F' :
     settings.tempUnit === 'K' ? ' K' : '°C'
   );
+
+  const cpuTempMaxConverted = $derived(convertTemp(cpuTempMax.value));
+  const gpuTempMaxConverted = $derived(convertTemp(gpuTempMax.value));
 
   // True if at least one "top" row (CPU/GPU/RAM) is visible
   const hasTopRows  = $derived(settings.showCpu || settings.showGpu || settings.showRam);
@@ -305,12 +317,12 @@
     {/if}
 
     {#if settings.showCpu}
-      <MetricRow label="CPU" percent={metrics.cpu.percent} temp={convertTemp(metrics.cpu.temp)} tempSuffix={tempSuffix} history={cpuHistory} subExtra={cpuSubExtra} />
+      <MetricRow label="CPU" percent={metrics.cpu.percent} temp={convertTemp(metrics.cpu.temp)} tempMax={cpuTempMaxConverted} tempSuffix={tempSuffix} history={cpuHistory} subExtra={cpuSubExtra} />
     {/if}
 
     {#if settings.showGpu}
       {#if metrics.gpu}
-        <MetricRow label="GPU" percent={metrics.gpu.percent} temp={convertTemp(metrics.gpu.temp)} tempSuffix={tempSuffix} detail={vramDetail} history={gpuHistory} />
+        <MetricRow label="GPU" percent={metrics.gpu.percent} temp={convertTemp(metrics.gpu.temp)} tempMax={gpuTempMaxConverted} tempSuffix={tempSuffix} detail={vramDetail} history={gpuHistory} />
       {:else}
         <MetricRow label="GPU" percent={0} na={true} />
       {/if}
