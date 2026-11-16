@@ -12,53 +12,6 @@ export function thresholdColor(percent: number): string {
 }
 
 /**
- * Returns upload and download color vars for a network rate in bytes/s.
- *
- * Rate (MB/s)  upload       download
- * < 1          green        cyan
- * 1–9          yellow       yellow
- * ≥ 10         red          red
- */
-export function netColors(bytesPerSec: number): { upload: string; download: string } {
-  const mbps = bytesPerSec / 1_048_576;
-  if (mbps >= 10) return { upload: 'var(--color-danger)', download: 'var(--color-danger)' };
-  if (mbps >= 1)  return { upload: 'var(--color-warn)',   download: 'var(--color-warn)' };
-  return { upload: 'var(--color-ok)', download: 'var(--color-dl)' };
-}
-
-/**
- * Formats a bytes/s value as a human-readable rate string.
- *
- * Examples:
- *   0            → "0 B/s"
- *   512          → "512 B/s"
- *   1536         → "1.5 KB/s"
- *   1_572_864    → "1.5 MB/s"
- */
-export function formatRate(bytesPerSec: number): string {
-  if (bytesPerSec < 1_024) {
-    return `${Math.round(bytesPerSec)} B/s`;
-  }
-  if (bytesPerSec < 1_048_576) {
-    return `${(bytesPerSec / 1_024).toFixed(1)} KB/s`;
-  }
-  return `${(bytesPerSec / 1_048_576).toFixed(1)} MB/s`;
-}
-
-/**
- * Returns a CSS color var for a latency value in ms.
- *
- * < 30ms   → green  --color-ok
- * 30–100ms → yellow --color-warn
- * > 100ms  → red    --color-danger
- */
-export function latencyColor(ms: number): string {
-  if (ms > 100) return 'var(--color-danger)';
-  if (ms >= 30) return 'var(--color-warn)';
-  return 'var(--color-ok)';
-}
-
-/**
  * Formats bytes as a compact size string (used for RAM / VRAM display).
  *
  * Examples:

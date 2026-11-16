@@ -8,7 +8,7 @@
   import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
   import { load } from '@tauri-apps/plugin-store';
 
-  import { metrics, cpuHistory, gpuHistory, cpuTempMax, gpuTempMax, startListening, stopListening } from '$lib/stores/metrics.svelte';
+  import { metrics, metricsStatus, cpuHistory, gpuHistory, cpuTempMax, gpuTempMax, startListening, stopListening } from '$lib/stores/metrics.svelte';
   import { settings, loadSettings, applyToDocument } from '$lib/stores/settings.svelte';
 
   const appWindow = getCurrentWindow();
@@ -532,7 +532,7 @@
 
     {#if settings.showNetwork}
       {#if hasTopRows || hasDiskRows}<div class="divider"></div>{/if}
-      <NetworkRow network={metrics.network} />
+      <NetworkRow network={metrics.network} ready={metricsStatus.received} />
     {/if}
 
   </div>

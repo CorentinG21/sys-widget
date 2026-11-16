@@ -76,6 +76,11 @@ function pushHistory(arr: number[], value: number) {
 export const cpuTempMax = $state<{ value: number | null }>({ value: null });
 export const gpuTempMax = $state<{ value: number | null }>({ value: null });
 
+// ─── First payload ───────────────────────────────────────────────────────────
+
+/** False until the first payload arrives: rows can show "not known yet" instead of defaults. */
+export const metricsStatus = $state({ received: false });
+
 // ─── Listener lifecycle ───────────────────────────────────────────────────────
 
 let unlisten: UnlistenFn | null = null;
@@ -93,6 +98,7 @@ export async function startListening(): Promise<void> {
     metrics.disks   = p.disks;
     metrics.network = p.network;
     metrics.top_cpu = p.top_cpu;
+    metricsStatus.received = true;
 
     pushHistory(cpuHistory, p.cpu.percent);
     pushHistory(gpuHistory, p.gpu ? p.gpu.percent : 0);

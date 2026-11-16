@@ -2,6 +2,7 @@ mod legacy;
 mod lhm;
 mod models;
 mod monitor;
+mod network;
 mod startup;
 
 use std::sync::atomic::{AtomicU64, Ordering};

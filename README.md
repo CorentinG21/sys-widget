@@ -26,7 +26,7 @@ Conçu avec Tauri, Rust et Svelte 5, il affiche vos métriques système dans un 
 | **GPU** | % Utilisation · Température (°C) · VRAM (Utilisée / Totale) |
 | **RAM** | % Utilisation · Go (Utilisés / Total) |
 | **Disques** | % Utilisation par partition (C:, D:, E:…) · Go (Utilisés / Total) |
-| **Réseau** | Débit instantané Upload ↑ et Download ↓ |
+| **Réseau** | Débit reçu ↓ et envoyé ↑ · état de la connexion (OK / Lente / Hors ligne, latence au survol) |
 
 ---
 

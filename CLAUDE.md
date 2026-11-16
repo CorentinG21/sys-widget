@@ -20,7 +20,7 @@ src/
     components/
       MetricRow.svelte       → ligne CPU / GPU / RAM avec barre + sparkline
       DiskRow.svelte         → ligne disque
-      NetworkRow.svelte      → ligne réseau ↑↓
+      NetworkRow.svelte      → ligne réseau ↓↑ + état de la connexion
       Sparkline.svelte       → mini graphe historique CPU/GPU
       SettingsPanel.svelte   → panel inline (couleur, transparence, ancrage, lock)
       ContextMenu.svelte     → menu clic droit (settings, update, startup, restart, quit)
@@ -30,8 +30,10 @@ src/
       settings.svelte.ts     → $state settings, load/save via plugin-store
     shortcuts.ts             → raccourci global du click-through (constante unique)
     utils/
-      colors.ts              → seuils couleurs, formatBytes, latencyColor
-      colors.test.ts         → tests Vitest pour toutes les fonctions de colors.ts
+      colors.ts              → seuils couleurs, formatBytes
+      colors.test.ts         → tests Vitest de colors.ts
+      network.ts             → formatNetRate, connectionStatus (ligne réseau)
+      network.test.ts        → tests Vitest de network.ts
       geometry.ts            → calculs purs de fenêtre : ancrage, moniteurs, position widget ↔ fenêtre, menu
       geometry.test.ts       → tests Vitest de geometry.ts
 
@@ -39,7 +41,8 @@ src-tauri/
   src/
     main.rs                  → entrée Tauri
     lib.rs                   → commandes Tauri, boucle métriques 2s, updater
-    monitor.rs               → Monitor : CPU rolling avg, RAM, disques (cache 10s), réseau delta, latence TCP
+    monitor.rs               → Monitor : CPU rolling avg, RAM, disques (cache 10s), réseau, latence TCP lissée
+    network.rs               → cartes réseau physiques (GetIfTable2), débits lissés
     lhm.rs                   → LhmProcess : subprocess PS persistant, températures CPU/GPU
     models.rs                → structs MetricsPayload, CpuMetrics, GpuMetrics, etc.
     startup.rs               → schtask register/unregister/toggle via schtasks.exe, réparation des tâches obsolètes
@@ -89,7 +92,7 @@ Releases : https://github.com/CorentinG21/sys-widget/releases
 | GPU % + °C + VRAM | LHM DLL (via PS subprocess) | 2 s |
 | RAM % + Go | sysinfo | 2 s |
 | Disques % + Go | sysinfo (caché 10 s) | 10 s |
-| Réseau ↑↓ MB/s + latence ms | sysinfo delta + TCP connect 8.8.8.8:53 | 2 s / 5 s |
+| Réseau ↓↑ + état de la connexion | sysinfo (cartes physiques seulement) + TCP connect 8.8.8.8:53 / 1.1.1.1:443 | 2 s / 5 s |
 | Top process CPU | sysinfo | 2 s |
 
 ## Fonctionnalités
@@ -135,26 +138,19 @@ Une sonde CPU à 0 est ignorée : c'est ce que renvoie LHM sans droits admin ou 
 | 70–89 % | Jaune `#ffd166` |
 | ≥ 90 % | Rouge `#ff6b6b` |
 
-## Latence réseau (`monitor.rs` + `NetworkRow.svelte`)
+## Ligne réseau (`NetworkRow.svelte`, `network.rs`, `monitor.rs`)
 
-`start_latency_poller()` démarre un thread dédié qui tente un TCP connect vers `8.8.8.8:53` toutes les 5 s (timeout 2 s). Le résultat est stocké dans un `Arc<Mutex<Option<u32>>>` et injecté dans `NetworkMetrics.latency_ms` à chaque tick.
+Affichage : `NET  ↓ 2,0 Ko/s  ↑ 4,9 Ko/s  ● OK`. Réception d'abord, débits en couleur neutre, à largeur fixe (`formatNetRate` : au moins Ko/s, une décimale, unité dans la langue, 10 caractères max). La pastille est la seule couleur de la ligne ; au survol, l'état est remplacé par la latence en ms. Avant la première mesure : `● …` gris.
 
-Affiché dans `NetworkRow` sous forme `• Xms` (ou `• --` si offline).
-
-| Seuil | Couleur |
-|---|---|
-| < 30 ms | Vert `--color-ok` |
-| 30–100 ms | Jaune `--color-warn` |
-| > 100 ms | Rouge `--color-danger` |
-| null | Gris (offline / timeout) |
-
-## Couleur réseau (seuils MB/s)
-
-| Seuil | Upload | Download |
+| État | Condition | Pastille |
 |---|---|---|
-| < 1 MB/s | Vert `#06d6a0` | Cyan `#74d7f7` |
-| 1–9 MB/s | Jaune `#ffd166` | Jaune `#ffd166` |
-| ≥ 10 MB/s | Rouge `#ff6b6b` | Rouge `#ff6b6b` |
+| OK | latence < 100 ms | `--color-ok` |
+| Lente | latence ≥ 100 ms | `--color-warn` |
+| Hors ligne | 2 échecs de suite (ou le tout premier) | `--color-danger` |
+
+**Débits** (`network.rs`) : seules les cartes physiques sont comptées (Ethernet, Wi-Fi : drapeau `HardwareInterface` de `GetIfTable2`). Les adaptateurs virtuels (VirtualBox, Hyper-V, WSL) et les tunnels VPN sont exclus, leur trafic passant déjà par une carte. Si aucune carte n'est reconnue, toutes les interfaces sont additionnées. Lissage exponentiel (constante 2 s), sans pic quand une carte se connecte ou se déconnecte. La console de `tauri dev` affiche `[network] counting …` à chaque changement.
+
+**Latence** (`monitor.rs`) : TCP connect toutes les 5 s vers `8.8.8.8:53`, puis `1.1.1.1:443` si le premier est bloqué (timeout 2 s). Valeur affichée : médiane des 3 dernières mesures réussies.
 
 ## Tests
 
@@ -163,13 +159,13 @@ Affiché dans `NetworkRow` sous forme `• Xms` (ou `• --` si offline).
 npm run test        # run once
 npm run test:watch  # watch mode
 ```
-Tests dans `src/lib/utils/colors.test.ts` (`thresholdColor`, `netColors`, `formatRate`, `formatBytes`, `latencyColor`) et `src/lib/utils/geometry.test.ts` (ancrage, moniteurs, position widget ↔ fenêtre, placement du menu).
+Tests dans `src/lib/utils/colors.test.ts` (`thresholdColor`, `formatBytes`), `src/lib/utils/network.test.ts` (`formatNetRate`, `connectionStatus`) et `src/lib/utils/geometry.test.ts` (ancrage, moniteurs, position widget ↔ fenêtre, placement du menu).
 
 ### Rust
 ```powershell
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
-Tests dans `monitor.rs` (latence, sérialisation JSON, collect), `lhm.rs` (parsing JSON, arguments PowerShell) et `startup.rs` (tâche planifiée : script d'enregistrement, détection d'une tâche obsolète).
+Tests dans `monitor.rs` (latence : mesure, cible de secours, lissage ; sérialisation JSON, collect), `network.rs` (choix des cartes, débits lissés), `lhm.rs` (parsing JSON, arguments PowerShell) et `startup.rs` (tâche planifiée : script d'enregistrement, détection d'une tâche obsolète).
 
 ### Script des sondes (PowerShell)
 ```powershell
