@@ -1,3 +1,4 @@
+mod legacy;
 mod lhm;
 mod models;
 mod monitor;
@@ -234,14 +235,25 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // ── Startup task maintenance ────────────────────────────────────
+            // ── Install maintenance ─────────────────────────────────────────
             // Tasks registered by older versions die after 72 h and may point
-            // at a previous install location. Release only: a dev build must
-            // never repoint the user's startup task at target/debug.
+            // at a previous install location; updating from <= 2.9.0 leaves
+            // the old per-user copy, which the user's shortcuts still launch.
+            // Release only: a dev build must never repoint the startup task or
+            // shortcuts at target/debug.
             if !cfg!(debug_assertions) {
                 if let Ok(exe) = std::env::current_exe() {
+                    let cleanup_script = app_handle
+                        .path()
+                        .resource_dir()
+                        .ok()
+                        .map(|dir| dir.join("hardware").join("cleanup_legacy.ps1"));
                     std::thread::spawn(move || {
-                        startup::repair_if_outdated(&exe.to_string_lossy());
+                        let exe = exe.to_string_lossy();
+                        startup::repair_if_outdated(&exe);
+                        if let Some(script) = cleanup_script {
+                            legacy::remove_per_user_install(&script, &exe);
+                        }
                     });
                 }
             }
