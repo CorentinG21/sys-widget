@@ -1,0 +1,35 @@
+Third-party libraries distributed with SysmonWidget
+===================================================
+
+The DLLs in this folder are unmodified .NET Framework builds taken from the
+NuGet packages below (https://www.nuget.org/packages/<package>/<version>).
+They are loaded by read_temp.ps1 in Windows PowerShell 5.1.
+
+The source code of the MPL-2.0 libraries is available at the repositories and
+commits listed. License texts: https://mozilla.org/MPL/2.0/,
+https://www.apache.org/licenses/LICENSE-2.0, https://opensource.org/license/mit
+
+Package                                  Version  License     Source
+---------------------------------------  -------  ----------  ------------------------------------------------------------
+LibreHardwareMonitorLib                  0.9.6    MPL-2.0     https://github.com/LibreHardwareMonitor/LibreHardwareMonitor
+                                                              (commit 3d331e3370efb858411f19511373eff65a218701)
+DiskInfoToolkit                          1.1.2    MPL-2.0     https://github.com/Blacktempel/DiskInfoToolkit
+                                                              (commit 25319eae5781e75bcf141e844ceab2afe94d40ea)
+RAMSPDToolkit-NDD                        1.4.2    MPL-2.0     https://github.com/Blacktempel/RAMSPDToolkit
+                                                              (commit 3b47b960e0830fef344624ad5e389675d5f0a1ce)
+BlackSharp.Core                          1.0.7    MPL-2.0     https://github.com/Blacktempel/BlackSharp
+                                                              (commit c70b735c6cec123ee8a046ac4a0bc6c606f52cf0)
+HidSharp                                 2.6.4    Apache-2.0  https://software.seekye.com/hidsharp
+                                                              Copyright 2010-2025 James F. Bellinger
+System.Memory                            4.6.3    MIT         https://github.com/dotnet/maintenance-packages
+System.Buffers                           4.6.1    MIT         https://github.com/dotnet/maintenance-packages
+System.Numerics.Vectors                  4.6.1    MIT         https://github.com/dotnet/maintenance-packages
+System.Runtime.CompilerServices.Unsafe   6.1.2    MIT         https://github.com/dotnet/maintenance-packages
+System.Threading.AccessControl           10.0.3   MIT         https://github.com/dotnet/runtime
+System.Security.AccessControl            6.0.0    MIT         https://github.com/dotnet/runtime
+System.Security.Principal.Windows        5.0.0    MIT         https://github.com/dotnet/runtime
+
+Updating: take the same files from the new package versions. Use the
+net472 / net462 / net461 / net35 builds only (LibreHardwareMonitorLib:
+runtimes/win-x64/lib/net472). A .NET 8/9/10 build does not load in Windows
+PowerShell; src-tauri/tests/read_temp.test.ps1 checks this.
