@@ -126,18 +126,35 @@ async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Download and install the available update.
+/// On success the installer takes over and the app exits; an `Err` is returned
+/// when the download or install fails so the frontend can say so and let the
+/// user retry instead of staying on "installing…" forever.
 #[tauri::command]
-async fn install_update(app: AppHandle) {
+async fn install_update(app: AppHandle) -> Result<(), String> {
     use tauri_plugin_updater::UpdaterExt;
 
-    if let Ok(updater) = app.updater() {
-        if let Ok(Some(update)) = updater.check().await {
-            if let Err(e) = update.download_and_install(|_, _| {}, || {}).await {
-                eprintln!("[updater] install error: {e}");
-            }
-        }
+    let result = async {
+        let updater = app.updater().map_err(|e| e.to_string())?;
+        let update = updater
+            .check()
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "no update available".to_string())?;
+        update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|e| e.to_string())
     }
+    .await;
+
+    if let Err(e) = &result {
+        eprintln!("[updater] install error: {e}");
+    }
+    result
 }
+
+/// The sensor subprocess, shared between the metrics loop and the exit handler.
+struct LhmState(Arc<Mutex<Option<LhmProcess>>>);
 
 // ─── App setup ───────────────────────────────────────────────────────────────
 
@@ -170,6 +187,10 @@ pub fn run() {
             let update_item = MenuItemBuilder::new("Rechercher une mise à jour")
                 .id("check_update")
                 .build(app)?;
+            // The tray is the only way to reach a widget that ended up off-screen.
+            let reset_item = MenuItemBuilder::new("Réinitialiser la position")
+                .id("reset_position")
+                .build(app)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
             let restart_item = MenuItemBuilder::new("Redémarrer")
                 .id("restart")
@@ -180,6 +201,7 @@ pub fn run() {
                 .item(&version_item)
                 .item(&sep1)
                 .item(&update_item)
+                .item(&reset_item)
                 .item(&sep2)
                 .item(&restart_item)
                 .item(&quit_item)
@@ -196,6 +218,11 @@ pub fn run() {
                             check_updates(app).await;
                         });
                     }
+                    "reset_position" => {
+                        if let Err(e) = app.emit("reset-position", ()) {
+                            eprintln!("[tray] emit error: {e}");
+                        }
+                    }
                     "restart" => {
                         if let Ok(exe) = std::env::current_exe() {
                             let _ = std::process::Command::new(exe).spawn();
@@ -206,6 +233,18 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // ── Startup task maintenance ────────────────────────────────────
+            // Tasks registered by older versions die after 72 h and may point
+            // at a previous install location. Release only: a dev build must
+            // never repoint the user's startup task at target/debug.
+            if !cfg!(debug_assertions) {
+                if let Ok(exe) = std::env::current_exe() {
+                    std::thread::spawn(move || {
+                        startup::repair_if_outdated(&exe.to_string_lossy());
+                    });
+                }
+            }
 
             // ── LHM subprocess ──────────────────────────────────────────────
             let prod_path = app_handle
@@ -232,7 +271,7 @@ pub fn run() {
                     .map_err(|e| eprintln!("[lhm] startup error: {e}"))
                     .ok(),
             ));
-            let lhm_for_cleanup = Arc::clone(&lhm);
+            app.manage(LhmState(Arc::clone(&lhm)));
 
             // ── Poll interval state (default 2 s, changeable at runtime) ───
             let poll_ms = Arc::new(AtomicU64::new(2_000));
@@ -302,21 +341,22 @@ pub fn run() {
                 }
             });
 
-            // ── Cleanup on window destroy ───────────────────────────────────
-            if let Some(window) = app.get_webview_window("main") {
-                window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::Destroyed = event {
-                        if let Ok(mut guard) = lhm_for_cleanup.lock() {
-                            if let Some(lhm) = guard.as_mut() {
-                                lhm.cleanup();
-                            }
-                        }
-                    }
-                });
-            }
-
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Stop the sensor subprocess on every way out (quit, restart, tray).
+            // The main window's Destroyed event, used before, is not raised by
+            // app.exit(), which left PowerShell running after a restart.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(state) = app.try_state::<LhmState>() {
+                    if let Ok(mut guard) = state.0.lock() {
+                        if let Some(lhm) = guard.as_mut() {
+                            lhm.cleanup();
+                        }
+                    }
+                }
+            }
+        });
 }

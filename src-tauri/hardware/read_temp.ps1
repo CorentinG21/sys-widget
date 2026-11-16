@@ -1,86 +1,124 @@
-Add-Type -Path "$PSScriptRoot\LibreHardwareMonitorLib.dll"
+param(
+    # PID du processus qui a lance ce script (le widget). Quand il disparait,
+    # le script s'arrete : rien d'autre ne stoppe cette boucle si le widget
+    # plante, est tue ou est remplace par une mise a jour.
+    [int]$ParentPid = 0
+)
 
-$c = New-Object LibreHardwareMonitor.Hardware.Computer
-$c.IsCpuEnabled = $true
-$c.IsGpuEnabled = $true
-$c.Open()
+$parent = $null
+if ($ParentPid -gt 0) {
+    try {
+        # On garde un handle sur le processus : pas de confusion possible si
+        # Windows reattribue plus tard le meme PID a un autre programme.
+        $parent = [System.Diagnostics.Process]::GetProcessById($ParentPid)
+    } catch {
+        exit 0   # deja termine
+    }
+}
+
+function Test-ProcessGone {
+    param($process)
+    if ($null -eq $process) { return $false }
+    try {
+        return $process.HasExited
+    } catch {
+        return $null -eq (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)
+    }
+}
+
+# LibreHardwareMonitor est optionnel : s'il ne se charge pas, la boucle
+# continue avec les fallbacks (nvidia-smi, compteurs Windows, WMI).
+$c = $null
+try {
+    # Tauri lance le script avec un chemin "verbatim" (\\?\C:\...), que
+    # .NET Framework ne sait pas charger : on retire le prefixe.
+    $scriptDir = $PSScriptRoot -replace '^\\\\\?\\(?=[A-Za-z]:)', ''
+    Add-Type -Path (Join-Path $scriptDir 'LibreHardwareMonitorLib.dll') -ErrorAction Stop
+    $c = New-Object LibreHardwareMonitor.Hardware.Computer -ErrorAction Stop
+    $c.IsCpuEnabled = $true
+    $c.IsGpuEnabled = $true
+    $c.Open()
+} catch {
+    $c = $null
+    $reason = $_.Exception.Message
+    if ($_.Exception.LoaderExceptions) { $reason = $_.Exception.LoaderExceptions[0].Message }
+    [Console]::Error.WriteLine("LibreHardwareMonitor indisponible, fallbacks uniquement : $reason")
+}
 
 function Get-CpuTemp {
     param($hardware)
-    $temp = $null
-    # Pass 1 : sondes privilegiees (AMD Tctl/Tdie, Intel CPU Package)
+
+    # Uniquement le materiel CPU : un GPU expose une sonde "GPU Core", que le
+    # motif de la passe 2 prendrait pour la temperature du processeur.
+    $nodes = @()
     foreach ($hw in $hardware) {
+        if ($hw.HardwareType.ToString() -ne 'Cpu') { continue }
         $hw.Update()
-        foreach ($s in $hw.Sensors) {
-            if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
-                if ($s.Name -match 'Tctl|Tdie|CPU Package') { $temp = $s.Value; break }
-            }
-        }
-        if ($null -ne $temp) { break }
+        $nodes += $hw
         foreach ($sub in $hw.SubHardware) {
             $sub.Update()
-            foreach ($s in $sub.Sensors) {
-                if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
-                    if ($s.Name -match 'Tctl|Tdie|CPU Package') { $temp = $s.Value; break }
-                }
-            }
-            if ($null -ne $temp) { break }
-        }
-        if ($null -ne $temp) { break }
-    }
-    # Pass 2 : n'importe quelle sonde CPU/Core (top-level ET SubHardware)
-    if ($null -eq $temp) {
-        foreach ($hw in $hardware) {
-            foreach ($s in $hw.Sensors) {
-                if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
-                    if ($s.Name -match 'CPU|Core') { $temp = $s.Value; break }
-                }
-            }
-            if ($null -ne $temp) { break }
-            foreach ($sub in $hw.SubHardware) {
-                foreach ($s in $sub.Sensors) {
-                    if ($s.SensorType.ToString() -eq 'Temperature' -and $null -ne $s.Value) {
-                        if ($s.Name -match 'CPU|Core') { $temp = $s.Value; break }
-                    }
-                }
-                if ($null -ne $temp) { break }
-            }
-            if ($null -ne $temp) { break }
+            $nodes += $sub
         }
     }
-    return $temp
+
+    # Passe 1 : sondes privilegiees (AMD Tctl/Tdie, Intel CPU Package).
+    # Passe 2 : n'importe quelle sonde CPU/Core.
+    foreach ($pattern in 'Tctl|Tdie|CPU Package', 'CPU|Core') {
+        foreach ($node in $nodes) {
+            foreach ($s in $node.Sensors) {
+                # Une sonde a 0 n'est pas lisible (pas de droits admin ou pas de
+                # pilote PawnIO) : on passe a la suivante, puis au fallback WMI.
+                if ($s.SensorType.ToString() -ne 'Temperature' -or $null -eq $s.Value -or $s.Value -le 0) { continue }
+                # "Distance to TjMax" est une marge, pas une temperature.
+                if ($s.Name -match $pattern -and $s.Name -notmatch 'Distance') { return $s.Value }
+            }
+        }
+    }
+    return $null
 }
 
 function Read-GpuSensors {
     param($hw)
-    $usage     = $null
+    $coreLoad  = $null
+    $d3dLoad   = $null
     $firstLoad = $null
     $temp      = $null
     $vramUsed  = $null
     $vramTotal = $null
+    $d3dUsed   = $null
+    $d3dTotal  = $null
 
     foreach ($s in $hw.Sensors) {
         if ($null -eq $s.Value) { continue }
         $type = $s.SensorType.ToString()
         $name = $s.Name
 
+        # Noms exacts : tous les capteurs "D3D ..." contiennent "3D", et
+        # "D3D Shared Memory Used" (RAM systeme pretee au GPU) contient
+        # "Memory Used". Avec un motif partiel, le dernier capteur liste gagnait.
         if ($type -eq 'Load') {
-            if ($name -match 'GPU Core|3D') {
-                $usage = $s.Value
-            } elseif ($null -eq $firstLoad) {
-                $firstLoad = $s.Value
-            }
+            if     ($name -eq 'GPU Core')  { $coreLoad = $s.Value }
+            elseif ($name -eq 'D3D 3D')    { $d3dLoad  = $s.Value }
+            elseif ($null -eq $firstLoad)  { $firstLoad = $s.Value }
         }
         if ($type -eq 'Temperature' -and $null -eq $temp) {
             $temp = $s.Value
         }
         if ($type -eq 'SmallData') {
-            if ($name -match 'Memory Used') { $vramUsed  = $s.Value }
-            if ($name -match 'Memory Total') { $vramTotal = $s.Value }
+            switch ($name) {
+                'GPU Memory Used'            { $vramUsed  = $s.Value }
+                'GPU Memory Total'           { $vramTotal = $s.Value }
+                'D3D Dedicated Memory Used'  { $d3dUsed   = $s.Value }
+                'D3D Dedicated Memory Total' { $d3dTotal  = $s.Value }
+            }
         }
     }
 
+    $usage = $coreLoad
+    if ($null -eq $usage) { $usage = $d3dLoad }
     if ($null -eq $usage) { $usage = $firstLoad }
+    if ($null -eq $vramUsed)  { $vramUsed  = $d3dUsed }
+    if ($null -eq $vramTotal) { $vramTotal = $d3dTotal }
 
     return [ordered]@{
         usage         = $usage
@@ -189,7 +227,12 @@ function Get-WindowsGpuFallback {
 
 try {
     while ($true) {
-        $gpuData = Get-GpuData $c.Hardware
+        if (Test-ProcessGone $parent) { break }
+
+        $hardware = @()
+        if ($c) { $hardware = $c.Hardware }
+
+        $gpuData = Get-GpuData $hardware
         # Fallback 1 : nvidia-smi (NVIDIA non detecte par LHM)
         if ($null -eq $gpuData) {
             $gpuData = Get-NvidiaFallback
@@ -199,7 +242,7 @@ try {
             $gpuData = Get-WindowsGpuFallback
         }
 
-        $cpuTemp = Get-CpuTemp $c.Hardware
+        $cpuTemp = Get-CpuTemp $hardware
         if ($null -eq $cpuTemp) { $cpuTemp = Get-CpuTempWmiFallback }
 
         $obj = [ordered]@{
@@ -211,5 +254,5 @@ try {
         Start-Sleep -Milliseconds 2000
     }
 } finally {
-    $c.Close()
+    if ($c) { $c.Close() }
 }

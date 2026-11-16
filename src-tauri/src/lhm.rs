@@ -1,5 +1,5 @@
 use std::{
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
     path::PathBuf,
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
@@ -77,17 +77,11 @@ pub struct LhmProcess {
 impl LhmProcess {
     /// Spawn the PowerShell subprocess.
     pub fn start(script_path: PathBuf) -> Result<Self, String> {
+        let script = script_path.to_str().ok_or("invalid script path")?;
         let mut cmd = Command::new("powershell");
-        cmd.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            script_path.to_str().ok_or("invalid script path")?,
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        cmd.args(powershell_args(script, std::process::id()))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         // Hide the PowerShell console window on Windows.
         #[cfg(target_os = "windows")]
@@ -98,6 +92,12 @@ impl LhmProcess {
             .map_err(|e| format!("failed to spawn LHM subprocess: {e}"))?;
 
         let stdout = child.stdout.take().ok_or("could not capture stdout")?;
+
+        // The script's errors used to be discarded, which hid for months that
+        // the sensor library was not loading at all.
+        if let Some(stderr) = child.stderr.take() {
+            thread::spawn(move || log_stderr(stderr));
+        }
 
         let data: Arc<Mutex<LhmData>> = Arc::new(Mutex::new(LhmData::default()));
         let data_clone = Arc::clone(&data);
@@ -170,9 +170,63 @@ impl LhmProcess {
     }
 }
 
+/// Command-line arguments for `powershell.exe` to run `script`.
+///
+/// `parent_pid` is handed to the script so it can stop by itself once that
+/// process is gone. Killing the child from here only covers clean exits; a
+/// crash, a forced kill or the updater replacing the app would otherwise leave
+/// PowerShell running forever (writing to a closed pipe does not stop it).
+fn powershell_args(script: &str, parent_pid: u32) -> Vec<String> {
+    [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        script,
+        "-ParentPid",
+        &parent_pid.to_string(),
+    ]
+    .map(String::from)
+    .to_vec()
+}
+
+/// Forwards the script's error output to our log until the pipe closes.
+/// Reads bytes, not UTF-8 lines: PowerShell writes in the console code page.
+fn log_stderr(stderr: impl Read) {
+    let mut reader = BufReader::new(stderr);
+    let mut buf = Vec::new();
+    loop {
+        buf.clear();
+        match reader.read_until(b'\n', &mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                let line = String::from_utf8_lossy(&buf);
+                let line = line.trim_end();
+                if !line.is_empty() {
+                    eprintln!("[lhm:stderr] {line}");
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn script_is_told_which_process_to_watch() {
+        let args = powershell_args(r"C:\app\hardware\read_temp.ps1", 4242);
+        let file = args
+            .iter()
+            .position(|a| a == "-File")
+            .expect("-File argument");
+        assert_eq!(args[file + 1], r"C:\app\hardware\read_temp.ps1");
+        // Script parameters must follow the script path: placed before -File,
+        // PowerShell would take them for its own options.
+        assert_eq!(args[file + 2..], ["-ParentPid", "4242"]);
+    }
 
     #[test]
     fn raw_lhm_converts_to_lhm_data() {

@@ -28,9 +28,12 @@ src/
     stores/
       metrics.svelte.ts      → $state métriques, listen('metrics-updated')
       settings.svelte.ts     → $state settings, load/save via plugin-store
+    shortcuts.ts             → raccourci global du click-through (constante unique)
     utils/
       colors.ts              → seuils couleurs, formatBytes, latencyColor
       colors.test.ts         → tests Vitest pour toutes les fonctions de colors.ts
+      geometry.ts            → calculs purs de fenêtre : ancrage, moniteurs, position widget ↔ fenêtre, menu
+      geometry.test.ts       → tests Vitest de geometry.ts
 
 src-tauri/
   src/
@@ -41,8 +44,11 @@ src-tauri/
     models.rs                → structs MetricsPayload, CpuMetrics, GpuMetrics, etc.
     startup.rs               → schtask register/unregister/toggle via schtasks.exe
   hardware/
-    read_temp.ps1            → script PS boucle infinie, émet JSON par ligne sur stdout
-    LibreHardwareMonitorLib.dll
+    read_temp.ps1            → script PS en boucle, émet JSON par ligne sur stdout, s'arrête quand le widget (-ParentPid) disparaît
+    LibreHardwareMonitorLib.dll + 11 DLL de dépendances (builds .NET Framework)
+    THIRD-PARTY-NOTICES.txt  → versions, licences et sources des DLL
+  tests/
+    read_temp.test.ps1       → tests du script (sélection des sondes sur faux matériel + comportement du processus)
 
 release.ps1                  → script de release sémantique (voir ci-dessous)
 ```
@@ -101,17 +107,22 @@ Releases : https://github.com/CorentinG21/sys-widget/releases
 
 Le script PS tourne en boucle persistante (processus fils géré par `LhmProcess`), émet un objet JSON par ligne sur stdout toutes les 2 s. `lhm.rs` lit le dernier JSON valide reçu.
 
-Priorité des sondes CPU :
-1. `Tctl` ou `CPU Package` (AMD / Intel principal)
-2. Fallback : n'importe quel capteur contenant `CPU` ou `Core`
-3. Si aucune sonde : `null`
+Priorité des sondes CPU (matériel de type `Cpu` uniquement, jamais le GPU) :
+1. `Tctl`, `Tdie` ou `CPU Package` (AMD / Intel principal)
+2. Fallback : n'importe quel capteur contenant `CPU` ou `Core` (hors « Distance to TjMax »)
+3. Si aucune sonde : fallback WMI ThermalZone, sinon `null`
 
-## Positionnement multi-écran
+Une sonde CPU à 0 est ignorée : c'est ce que renvoie LHM sans droits admin ou sans le pilote PawnIO (cas de `tauri dev`).
 
-`openSettings()` et `anchorTo()` utilisent `currentMonitor()` de l'API Tauri v2 (bounds physiques réelles du moniteur courant) — contrairement à `window.screen` qui renvoie toujours le moniteur principal sous WebView2.
+> ⚠ **DLL : build .NET Framework obligatoire.** Le script tourne dans Windows PowerShell 5.1 (.NET Framework 4.x) : un build .NET 8/9/10 de LibreHardwareMonitorLib ne s'y charge pas, et le script retombe silencieusement sur les fallbacks (`nvidia-smi`, compteurs Windows, WMI). `hardware/` contient le build `net472` de LibreHardwareMonitorLib 0.9.6 et ses 11 dépendances ; versions, licences et procédure de mise à jour dans `hardware/THIRD-PARTY-NOTICES.txt`. Le test `process: loads LibreHardwareMonitor` de `read_temp.test.ps1` vérifie le chargement. Si la lib échoue malgré tout, la raison apparaît en `[lhm:stderr]` dans la console de `tauri dev`.
 
-Ancrage droite (↗ / ↘) : le panel settings est automatiquement placé à **gauche** du widget.
-Ancrage gauche (↖ / ↙) : le panel settings est à **droite**.
+## Fenêtre et positionnement (`+page.svelte` + `utils/geometry.ts`)
+
+- La fenêtre fait toujours exactement la taille de son contenu (`ResizeObserver` → `syncWindow()`), pour qu'aucune zone transparente ne capte les clics du bureau.
+- Source de vérité : `widgetPos`, coin haut-gauche du **widget** à l'écran en pixels physiques. Le rectangle de la fenêtre en est dérivé ; c'est aussi `widgetPos` qui est sauvegardé (clé `position`), jamais la position de la fenêtre agrandie.
+- Ancrage : la clé `anchor` mémorise le coin ; il est ré-appliqué à chaque changement de taille du widget et annulé par un déplacement manuel. Les calculs utilisent la zone de travail du moniteur (`workArea`, hors barre des tâches).
+- Le panel settings passe à **gauche** s'il dépasse le bord droit ; le panel et la place du menu contextuel s'étendent **vers le haut** quand le widget est dans la moitié basse de l'écran.
+- Au démarrage, une position sauvegardée sur un écran débranché est ramenée dans l'écran le plus proche. Tray → « Réinitialiser la position » ancre en haut à droite.
 
 ## Couleur des barres (CPU / GPU / RAM / Disques)
 
@@ -149,13 +160,19 @@ Affiché dans `NetworkRow` sous forme `• Xms` (ou `• --` si offline).
 npm run test        # run once
 npm run test:watch  # watch mode
 ```
-Tests dans `src/lib/utils/colors.test.ts` — couvre `thresholdColor`, `netColors`, `formatRate`, `formatBytes`, `latencyColor`.
+Tests dans `src/lib/utils/colors.test.ts` (`thresholdColor`, `netColors`, `formatRate`, `formatBytes`, `latencyColor`) et `src/lib/utils/geometry.test.ts` (ancrage, moniteurs, position widget ↔ fenêtre, placement du menu).
 
 ### Rust
 ```powershell
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
-Tests dans `monitor.rs` (latence, sérialisation JSON, collect) et `lhm.rs` (parsing JSON).
+Tests dans `monitor.rs` (latence, sérialisation JSON, collect), `lhm.rs` (parsing JSON, arguments PowerShell) et `startup.rs` (tâche planifiée : script d'enregistrement, détection d'une tâche obsolète).
+
+### Script des sondes (PowerShell)
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File src-tauri\tests\read_temp.test.ps1
+```
+Sélection des sondes CPU/GPU sur du faux matériel, et comportement du vrai script lancé comme processus (sortie JSON, chargement de LHM, arrêt quand le parent disparaît, chemin `\\?\`). Code de sortie = nombre d'échecs.
 
 ## Modifier le polling
 

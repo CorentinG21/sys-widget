@@ -11,16 +11,28 @@
   const { version }: Props = $props();
 
   let installing = $state(false);
+  let failed = $state(false);
 
   async function update() {
     installing = true;
-    await invoke('install_update');
+    failed = false;
+    try {
+      // On success the installer takes over and the app exits: this only returns on failure.
+      await invoke('install_update');
+    } catch (e) {
+      console.error('[updater] install failed:', e);
+      failed = true;
+    } finally {
+      installing = false;
+    }
   }
 </script>
 
 <button class="update-banner" onclick={update} disabled={installing}>
   {#if installing}
     {t.installing}
+  {:else if failed}
+    {t.updateFailed} {t.clickToRetry}
   {:else}
     {t.newVersion}{version}{t.clickToUpdate}
   {/if}

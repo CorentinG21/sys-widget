@@ -4,6 +4,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { settings, saveSettings } from '$lib/stores/settings.svelte';
   import { translations } from '$lib/i18n';
+  import { CLICK_THROUGH_SHORTCUT } from '$lib/shortcuts';
   const t = $derived(translations[settings.lang]);
   import type { AccentColor, Transparency, DisplayMode } from '$lib/stores/settings.svelte';
 
@@ -250,7 +251,7 @@
       {settings.alwaysOnTop ? '✓' : '○'} {t.alwaysOnTop}
     </button>
     <button class="toggle-row" onclick={toggleClickThrough}>
-      {settings.clickThrough ? '✓' : '○'} {t.clickThrough}
+      {settings.clickThrough ? '✓' : '○'} {t.clickThrough} ({CLICK_THROUGH_SHORTCUT})
     </button>
   </section>
 

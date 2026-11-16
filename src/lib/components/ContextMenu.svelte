@@ -17,15 +17,18 @@
     onsaveposition: () => Promise<void>;
     /** Toggle the inline settings panel. */
     onsettings: () => void;
+    /** The menu element while it is shown, so the parent can measure it. */
+    el?: HTMLElement | null;
   }
 
-  const { x, y, visible, updateVersion, onclose, onsaveposition, onsettings }: Props = $props();
+  let { x, y, visible, updateVersion, onclose, onsaveposition, onsettings, el = $bindable(null) }: Props = $props();
 
   let version = $state('…');
   let startupEnabled = $state(false);
   let checkingUpdate = $state(false);
   let updateMsg = $state<string | null>(null);
   let installing = $state(false);
+  let installFailed = $state(false);
 
   onMount(async () => {
     version = await getVersion();
@@ -44,9 +47,9 @@
     await tick();
     try {
       const result = await invoke<string | null>('check_update');
-      updateMsg = result ? `v${result} disponible !` : 'Déjà à jour ✓';
+      updateMsg = result ? `v${result} ${t.updateFound}` : t.alreadyUpToDate;
     } catch {
-      updateMsg = 'Erreur de connexion';
+      updateMsg = t.connectionError;
     } finally {
       const remaining = 500 - (performance.now() - startedAt);
       if (remaining > 0) {
@@ -58,10 +61,20 @@
   }
 
   async function installUpdate() {
+    if (installing) return;
     installing = true;
-    await onsaveposition();
-    await invoke('install_update');
-    installing = false;
+    installFailed = false;
+    try {
+      await onsaveposition();
+      // On success the installer takes over and the app exits: this only returns on failure.
+      await invoke('install_update');
+    } catch (e) {
+      console.error('[updater] install failed:', e);
+      installFailed = true;
+      setTimeout(() => { installFailed = false; }, 4000);
+    } finally {
+      installing = false;
+    }
   }
 
   async function restart() {
@@ -93,7 +106,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="backdrop" onclick={onclose}></div>
 
-  <div class="context-menu" style="left: {x}px; top: {y}px;" role="menu">
+  <div class="context-menu" style="left: {x}px; top: {y}px;" role="menu" bind:this={el}>
 
     <div class="menu-version" role="menuitem" aria-disabled="true">
       SysmonWidget v{version}
@@ -109,7 +122,7 @@
 
     {#if updateVersion}
       <button class="menu-item menu-item--update" role="menuitem" onclick={installUpdate} disabled={installing}>
-        {installing ? t.downloading : `${t.updateAvailable}${updateVersion}`}
+        {installing ? t.downloading : installFailed ? t.updateFailed : `${t.updateAvailable}${updateVersion}`}
       </button>
     {/if}
 
